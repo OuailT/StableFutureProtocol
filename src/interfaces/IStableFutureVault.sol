@@ -1,67 +1,67 @@
 // SPDX-License-Identifier: SEE LICENSE IN LICENSE
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.22;
 
-import {IERC20Upgradeable} from "openzeppelin-contracts-upgradeable/contracts/interfaces/IERC20Upgradeable.sol";
+import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {StableFutureStructs} from "../libraries/StableFutureStructs.sol";
 
 interface IStableFutureVault {
-    function collateral() external view returns (IERC20Upgradeable collateral);
+    // function collateral() external view returns (IERC20 collateral);
 
-    function lastRecomputedFundingTimestamp() external view returns (uint64 lastRecomputedFundingTimestamp);
+    // function lastRecomputedFundingTimestamp() external view returns (uint64 lastRecomputedFundingTimestamp);
 
-    function minExecutabilityAge() external view returns (uint64 minExecutabilityAge);
+    // function minExecutabilityAge() external view returns (uint64 minExecutabilityAge);
 
-    function maxExecutabilityAge() external view returns (uint64 maxExecutabilityAge);
+    // function maxExecutabilityAge() external view returns (uint64 maxExecutabilityAge);
 
-    function lastRecomputedFundingRate() external view returns (int256 lastRecomputedFundingRate);
+    // function lastRecomputedFundingRate() external view returns (int256 lastRecomputedFundingRate);
 
-    function cumulativeFundingRate() external view returns (int256 cumulativeFundingRate);
+    // function cumulativeFundingRate() external view returns (int256 cumulativeFundingRate);
 
-    function maxFundingVelocity() external view returns (uint256 maxFundingVelocity);
+    // function maxFundingVelocity() external view returns (uint256 maxFundingVelocity);
 
-    function maxVelocitySkew() external view returns (uint256 maxVelocitySkew);
+    // function maxVelocitySkew() external view returns (uint256 maxVelocitySkew);
 
-    function stableCollateralTotal() external view returns (uint256 totalAmount);
+    // function stableCollateralTotal() external view returns (uint256 totalAmount);
 
-    function skewFractionMax() external view returns (uint256 skewFractionMax);
+    // function skewFractionMax() external view returns (uint256 skewFractionMax);
 
-    function moduleAddress(bytes32 _moduleKey) external view returns (address moduleAddress);
+    // function moduleAddress(bytes32 _moduleKey) external view returns (address moduleAddress);
 
-    function isAuthorizedModule(address _address) external view returns (bool status);
+    // function isAuthorizedModule(address _address) external view returns (bool status);
 
-    function isModulePaused(bytes32 moduleKey) external view returns (bool paused);
+    // function isModulePaused(bytes32 moduleKey) external view returns (bool paused);
 
-    function sendCollateral(address to, uint256 amount) external;
+    // function sendCollateral(address to, uint256 amount) external;
 
-    function getVaultSummary() external view returns (StableFutureStructs.VaultSummary memory _vaultSummary);
+    // function getVaultSummary() external view returns (StableFutureStructs.VaultSummary memory _vaultSummary);
 
-    function getGlobalPositions() external view returns (StableFutureStructs.GlobalPositions memory _globalPositions);
+    // function getGlobalPositions() external view returns (StableFutureStructs.GlobalPositions memory _globalPositions);
 
-    function setPosition(StableFutureStructs.Position memory _position, uint256 _tokenId) external;
+    // function setPosition(StableFutureStructs.Position memory _position, uint256 _tokenId) external;
 
-    function updateGlobalPositionData(uint256 price, int256 marginDelta, int256 additionalSizeDelta) external;
+    // function updateGlobalPositionData(uint256 price, int256 marginDelta, int256 additionalSizeDelta) external;
 
-    function updateStableCollateralTotal(int256 _stableCollateralAdjustment) external;
+    // function updateStableCollateralTotal(int256 _stableCollateralAdjustment) external;
 
-    function addAuthorizedModules(StableFutureStructs.AuthorizedModule[] calldata _modules) external;
+    // function addAuthorizedModules(StableFutureStructs.AuthorizedModule[] calldata _modules) external;
 
-    function addAuthorizedModule(StableFutureStructs.AuthorizedModule calldata _module) external;
+    // function addAuthorizedModule(StableFutureStructs.AuthorizedModule calldata _module) external;
 
-    function removeAuthorizedModule(bytes32 _moduleKey) external;
+    // function removeAuthorizedModule(bytes32 _moduleKey) external;
 
-    function deletePosition(uint256 _tokenId) external;
+    // function deletePosition(uint256 _tokenId) external;
 
-    function settleFundingFees() external returns (int256 fundingFees);
+    // function settleFundingFees() external returns (int256 fundingFees);
 
-    function getCurrentFundingRate() external view returns (int256 fundingRate);
+    // function getCurrentFundingRate() external view returns (int256 fundingRate);
 
-    function getPosition(uint256 _tokenId) external view returns (StableFutureStructs.Position memory position);
+    // function getPosition(uint256 _tokenId) external view returns (StableFutureStructs.Position memory position);
 
-    function checkSkewMax(uint256 additionalSkew) external view;
+    // function checkSkewMax(uint256 additionalSkew) external view;
 
-    function checkCollateralCap(uint256 depositAmount) external view;
+    // function checkCollateralCap(uint256 depositAmount) external view;
 
-    function stableCollateralCap() external view returns (uint256 collateralCap);
+    // function stableCollateralCap() external view returns (uint256 collateralCap);
 
-    function getCurrentSkew() external view returns (int256 skew);
+    // function getCurrentSkew() external view returns (int256 skew);
 }

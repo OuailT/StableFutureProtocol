@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity ^0.8.22;
 
 import {StableFutureStructs} from "./StableFutureStructs.sol";
 
@@ -21,8 +21,5 @@ library StableFutureErrors {
     error onlyAuthorizedModule(address msgSender);
     
     error ModuleKeyEmpty();
-
-
-
 
 }

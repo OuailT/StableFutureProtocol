@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.22;
 
 import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {IStableFutureVault} from "../interfaces/IStableFutureVault.sol";
-import {StableFutureErrors} from "../interfaces/StableFutureErrors.sol";
+import {StableFutureErrors} from "../libraries/StableFutureErrors.sol";
 
 
 abstract contract ModuleUpgradeable {
@@ -12,6 +12,13 @@ abstract contract ModuleUpgradeable {
 
     // Define the interface of the StableFutureVault contract
     IStableFutureVault public vault;
+
+
+    // Only owner modifier 
+    modifier onlyOwner {
+        if(OwnableUpgradeable(address(vault)).owner() != msg.sender) revert StableFutureErrors.onlyOwner(msg.sender);
+        _;
+    }
 
 
     /**
@@ -23,13 +30,13 @@ abstract contract ModuleUpgradeable {
 
     /// @notice Setter for the vault contract.
     /// @dev Can be used in case StableFutureVault ever changes.
-    function setVault(IFlatcoinVault _vault) external onlyOwner {
-        if (address(_vault) == address(0)) revert FlatcoinErrors.ZeroAddress("vault");
+    function setVault(IStableFutureVault _vault) external onlyOwner {
+        if (address(_vault) == address(0)) revert StableFutureErrors.ZeroAddress("vault");
 
         vault = _vault;
     }  
 
-    
+
     /// @dev Function to initilize the module
     /// @param _moduleKey the bytes32 encoded key of the module
     /// @param _vault StableFutureVault address  
@@ -43,7 +50,6 @@ abstract contract ModuleUpgradeable {
     // Add Gaps in case we want to add more variable later for a specific contract
     uint256[48] private __gap;
 
-    
 }
 
 
