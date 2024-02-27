@@ -8,6 +8,8 @@ import {IStableFutureVault} from "./interfaces/IStableFutureVault.sol";
 import {StableModuleKeys} from "./libraries/StableModuleKeys.sol";
 import {ModuleUpgradeable} from "./abstracts/ModuleUpgradeable.sol";
 import {StableFutureStructs} from "./libraries/StableFutureStructs.sol";
+import {StableFutureEvents} from "./libraries/StableFutureEvents.sol";
+
 
 /**
     NOTE:
@@ -35,7 +37,7 @@ import {StableFutureStructs} from "./libraries/StableFutureStructs.sol";
 contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
     uint256 public constant MIN_DEPOSIT = 1e16;
-    
+
     /// @dev mapping to store all the announced Orders in encoded format
     mapping(address => StableFutureStructs.Order order) public _announcedOrder;
 
@@ -57,8 +59,71 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     function initialize(IStableFutureVault _vault) external initializer {
         __init_Module(StableModuleKeys.ORDERS, _vault);
         __ReentrancyGuard_init(); 
+    }
+
+    /**
+        TODO:
+        Function Def: function that will allow user to annonce a deposit by providing liquidity rETH(rocket pool)
+        This announced deposit will be executed by a keeper later.
+        Params: depositAmount, minAmount, keeperFees
+        Modifier: add pausable functionnalities (x)
+        - record the announceDeposit order in the _announceOrdermapping [x]
+        - 
+        - Emit the the event
+    */
+    // mapping(address => StableFutureStructs.Order order) public _announcedOrder;
+    function announceDeposit(
+            uint256 depositAmount,
+            uint256 minAmountOut, 
+            uint256 keeperFee) public {
+        
+        // record the announceDeposit order in the _announceOrdermapping [x]
+        _announcedOrder[msg.sender] = StableFutureStructs.Order({
+            orderType: StableFutureStructs.OrderType.StableDeposit,
+            orderData: abi.encode(
+                StableFutureStructs.AnnouncedLiquidityDeposit({
+                depositAmount: depositAmount, minAmountOut: minAmountOut})
+            ),
+            keeperFee: keeperFee
+            // executableAtTime: to implement later
+        });
+
+        // Transfer rETh from msg.sender to this address(this) which will transfer it later to the vault when the annonced order is executed(x)
+        // vault.collateral().safeTransferFrom(msg.sender, address(this), depositAmount + keeperFee);
+
+        // Emit Event
+        emit StableFutureEvents.OrderAnnounced({
+            account: msg.sender,
+            orderType: StableFutureStructs.OrderType.StableDeposit,
+            keeperFee: keeperFee
+        });
         
     }
+
+
+    //  struct AnnouncedLiquidityDeposit {
+    //     // Amount of liquidity deposited
+    //     uint256 depositAmount;
+    //     // The minimum amount of tokens expected to receive back after providing liquidity
+    //     uint256 minAmountOut;
+    // }
+
+    // enum OrderType {
+    //     None, // 1
+    //     StableDeposit, // 2 
+    //     StableWithdraw // 3f
+    // }
+
+    // struct Order {
+    //     OrderType orderType;
+    //     bytes orderData;
+    //     uint256 keeperFee; // The deposit paid upon submitting that needs to be paid / refunded on tx confirmation
+    //     uint64 executableAtTime; // The timestamp at which this order is executable at
+    // }
+
+
+
+
 
 
 

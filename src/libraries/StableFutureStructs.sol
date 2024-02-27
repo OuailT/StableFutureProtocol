@@ -12,9 +12,9 @@ library StableFutureStructs {
 
     struct Order {
         OrderType orderType;
+        bytes orderData;
         uint256 keeperFee; // The deposit paid upon submitting that needs to be paid / refunded on tx confirmation
         uint64 executableAtTime; // The timestamp at which this order is executable at
-        bytes orderData;
     }
 
     struct AnnouncedLiquidityDeposit {
