@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.22;
+pragma solidity ^0.8.22;
 
 import {ReentrancyGuardUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
@@ -9,6 +9,8 @@ import {StableModuleKeys} from "./libraries/StableModuleKeys.sol";
 import {ModuleUpgradeable} from "./abstracts/ModuleUpgradeable.sol";
 import {StableFutureStructs} from "./libraries/StableFutureStructs.sol";
 import {StableFutureEvents} from "./libraries/StableFutureEvents.sol";
+import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
+
 
 
 /**
@@ -58,7 +60,7 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     /// @dev initializer to make sure the initilize function acts as constructor(only get called/initilized once); 
     function initialize(IStableFutureVault _vault) external initializer {
         __init_Module(StableModuleKeys.ORDERS, _vault);
-        __ReentrancyGuard_init(); 
+        __ReentrancyGuard_init();
     }
 
     
@@ -72,12 +74,25 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         - 
         - Emit the the event
         - Create a function that will allow 
+        - Add Executable time function
+        - Check for slippage between "minAmountOut" and the Quoter function
     */
+
     // mapping(address => StableFutureStructs.Order order) public _announcedOrder;
     function announceDeposit(
             uint256 depositAmount,
             uint256 minAmountOut, 
             uint256 keeperFee) public {
+        
+        // Calculate the time when the order becomes executable by the keeper
+        uint64 executableAtTime = _orderExecutionTime();
+
+        uint256 amountOut;
+        // Check if deposit amount is below a minimum threshold
+        (amountOut) = vault.depositQuote(depositAmount);
+
+        /// Check for slippage
+        if(amountOut < minAmountOut) revert StableFutureErrors.HighSlippage(amountOut, minAmountOut);
         
         // record the announceDeposit order in the _announceOrdermapping [x]
         _announcedOrder[msg.sender] = StableFutureStructs.Order({
@@ -86,12 +101,12 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
                 StableFutureStructs.AnnouncedLiquidityDeposit({
                 depositAmount: depositAmount, minAmountOut: minAmountOut})
             ),
-            keeperFee: keeperFee
-            // executableAtTime: to implement later
+            keeperFee: keeperFee,
+            executableAtTime: executableAtTime
         });
 
         // Transfer rETh from msg.sender to this address(this) which will transfer it later to the vault when the annonced order is executed(x)
-        // vault.collateral().safeTransferFrom(msg.sender, address(this), depositAmount + keeperFee);
+        vault.collateral().safeTransferFrom(msg.sender, address(this), depositAmount + keeperFee);
 
         // Emit Event
         emit StableFutureEvents.OrderAnnounced({
@@ -101,6 +116,27 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         });
         
     }
+
+
+
+    /**
+        TODO:
+        Function Def: Function that allow us to get the executedAnouncementTime of an announced order.
+        Params: KeeperFees(TODO later) to check the minimum amount of keeperFees to pay for to execute an order
+        Modifier: none
+        Return(executeTime)
+    */
+
+    
+    
+    function _orderExecutionTime() private view returns(uint64 executeAtTime) {
+        // Todo: Cancel pending orders
+        // Check for Minmum amount of keeperFee
+        // settle fundingFees
+        return executeAtTime = uint64(block.timestamp + vault.minExecutabilityAge());
+    }
+
+    
 
 
     //  struct AnnouncedLiquidityDeposit {

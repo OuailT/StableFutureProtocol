@@ -22,4 +22,8 @@ library StableFutureErrors {
     
     error ModuleKeyEmpty();
 
+    error HighSlippage(uint256 deposit, uint256 accepted);
+
+
+
 }
