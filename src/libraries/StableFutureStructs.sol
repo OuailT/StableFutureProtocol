@@ -6,8 +6,8 @@ library StableFutureStructs {
 
     enum OrderType {
         None, // 1
-        StableDeposit, // 2 
-        StableWithdraw // 3f
+        Deposit, // 2 
+        Withdraw // 3f
     }
 
     struct Order {

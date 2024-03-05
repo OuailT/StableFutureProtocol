@@ -5,6 +5,7 @@ import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {StableFutureStructs} from "./libraries/StableFutureStructs.sol";
 import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
+import {StableFutureEvents} from "./libraries/StableFutureEvents.sol";
 import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {ERC20LockableUpgradeable} from "./utilities/ERC20LockableUpgradeable.sol";
 
@@ -76,11 +77,8 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     } // Contract runtime deployment(bytes code executed on EVM)
 
 
-    // Exercise:1
-    // function that to execute annnounced deposit by minting tokens and poin to the users.
-    // Params: account, StructsAnnouncDeposit to get the data
-    // returns liquidity minted
-    // TODO emit event || LATER MINT POINT
+
+
     function _executeDeposit(address account,
                              StableFutureStructs.AnnouncedLiquidityDeposit calldata liquidityDeposit)
                     external returns (uint256 liquidityMinted) {
@@ -91,12 +89,11 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
 
         liquidityMinted = depositQuote(depositAmount);
 
-        if(liquidityMinted < minAmountOut) {
-            revert StableFutureErrors.HighSlippage({amountOut: amountOut, accepted: minAmountOut});
+        if (liquidityMinted < minAmountOut) {
+            revert StableFutureErrors.HighSlippage({amountOut: liquidityMinted, accepted: minAmountOut});
         }
 
         _mint(account, liquidityMinted);
-
 
         // update total deposit in the pool
         updateTotalVaulDeposit(depositAmount);
@@ -104,9 +101,12 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
         // Check if the liquidity provided respect the min liquidity to provide to avoid inflation
         // attacks and position with small amount of tokens 
 
-        if(totalSupply() < MIN_LIQUIDITY) {
-            revert StableFutureErrors.AmountToSmall({amount: totalSupply(), minAmount: MIN_LIQUIDITY});
+        if (totalSupply() < MIN_LIQUIDITY) {
+            revert StableFutureErrors.AmountToSmall({depositAmount: totalSupply(), minDeposit: MIN_LIQUIDITY});
         } 
+
+        // TODO: Implement point system later
+        emit StableFutureEvents.Deposit(account, depositAmount, liquidityMinted);
 
     }
     
@@ -130,7 +130,7 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
 
     
     /// @notice Quoter function to calculate the the amount out of SFR tokens for a _deposit amount
-    function depositQuote(uint256 _depositAmount) external view returns(uint256 _amountOut) {
+    function depositQuote(uint256 _depositAmount) public view returns(uint256 _amountOut) {
             _amountOut = _depositAmount * (10 ** decimals()) / totalDepositPerShare();
     }
 
@@ -139,7 +139,7 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     // If it's only called by this contract I'll set it up to private
     // THIS function must be added to the execute announcedDeposit to update the totalVaultDeposit
     /// @notice Function to update totalVaultDeposit each time the announce deposit is executed by the keeper
-    function updateTotalVaulDeposit(uint256 _newDeposit) external {
+    function updateTotalVaulDeposit(uint256 _newDeposit) public {
         
         // totalVaultDeposit
         uint256 newTotalVaultDeposit = totalVaultDeposit + _newDeposit;
@@ -148,7 +148,6 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     }
 
 
-    
 
     /////////////////////////////////////////////
     //            Setter Functions             //
@@ -159,8 +158,6 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
         minExecutabilityAge = _minExecutabilityAge;
         maxExecutabilityAge = _maxExecutabilityAge;
     }
-
-
 
 
 

@@ -101,7 +101,7 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
         // record the announceDeposit order in the _announceOrdermapping [x]
         _announcedOrder[msg.sender] = StableFutureStructs.Order({
-            orderType: StableFutureStructs.OrderType.StableDeposit,
+            orderType: StableFutureStructs.OrderType.Deposit,
             orderData: abi.encode(
                 StableFutureStructs.AnnouncedLiquidityDeposit({
                 depositAmount: depositAmount, minAmountOut: minAmountOut})
@@ -116,13 +116,13 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         // Emit Event
         emit StableFutureEvents.OrderAnnounced({
             account: msg.sender,
-            orderType: StableFutureStructs.OrderType.StableDeposit,
+            orderType: StableFutureStructs.OrderType.Deposit,
             keeperFee: keeperFee
         });
         
     }
 
-    
+
     // Ex2: Function that allows the keeper to execute users announced deposit order
     // Params: account, view, returns liquidityMinted from internal function to create later
     // PART2: function to execute the the executeDeposit
@@ -137,11 +137,21 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
                 (StableFutureStructs.AnnouncedLiquidityDeposit)
             );
             
-            // Internal function that checks this...
+
             _orderTimeValidity(account, order.executableAtTime);
 
-            _executeDeposit(account, liquidityDeposit);
-            
+        liquidityMinted = IStableFutureVault(vault)._executeDeposit(account, liquidityDeposit);
+
+        // Transfer fees to the keeper
+        vault.collateral().safeTransfer({to: msg.sender, value: order.keeperFee});
+
+        // Transfer depositAmount to the vault
+        vault.collateral().safeTransfer({to: address(vault), value: liquidityDeposit.depositAmount});
+
+        emit StableFutureEvents.DepositExecuted({account: account,
+                                                orderType: order.orderType,
+                                                keeperFee: order.keeperFee});
+
     }
 
 
@@ -160,7 +170,7 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
         // delete the announce deposit if both condition doesn't revert
         delete _announcedOrder[account];
-
+        
     }
 
 
