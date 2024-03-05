@@ -12,7 +12,6 @@ import {StableFutureEvents} from "./libraries/StableFutureEvents.sol";
 import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
 
 
-
 /**
     NOTE:
     - The code inside a constructor or part of a global variable declaration is not part of a deployed contract's runtime bytecode
@@ -64,6 +63,7 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     }
 
     
+
     /**
         TODO:
         Function Def: function that will allow user to annonce a deposit by providing liquidity rETH(rocket pool)
@@ -87,13 +87,18 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         // Calculate the time when the order becomes executable by the keeper
         uint64 executableAtTime = _orderExecutionTime();
 
-        uint256 amountOut;
+        // Check for minimum deposit
+        if(depositAmount < MIN_DEPOSIT) {
+            revert StableFutureErrors.AmountToSmall({depositAmount: depositAmount, minDeposit: MIN_DEPOSIT});
+        }
+        
         // Check if deposit amount is below a minimum threshold
-        (amountOut) = vault.depositQuote(depositAmount);
+        uint256 amountOut = vault.depositQuote(depositAmount);
 
         /// Check for slippage
-        if(amountOut < minAmountOut) revert StableFutureErrors.HighSlippage(amountOut, minAmountOut);
+        if(amountOut < minAmountOut) revert StableFutureErrors.HighSlippage({amountOut: amountOut, accepted: minAmountOut});
         
+
         // record the announceDeposit order in the _announceOrdermapping [x]
         _announcedOrder[msg.sender] = StableFutureStructs.Order({
             orderType: StableFutureStructs.OrderType.StableDeposit,
@@ -104,7 +109,7 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
             keeperFee: keeperFee,
             executableAtTime: executableAtTime
         });
-
+        
         // Transfer rETh from msg.sender to this address(this) which will transfer it later to the vault when the annonced order is executed(x)
         vault.collateral().safeTransferFrom(msg.sender, address(this), depositAmount + keeperFee);
 
@@ -117,24 +122,68 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         
     }
 
-
-
-    /**
-        TODO:
-        Function Def: Function that allow us to get the executedAnouncementTime of an announced order.
-        Params: KeeperFees(TODO later) to check the minimum amount of keeperFees to pay for to execute an order
-        Modifier: none
-        Return(executeTime)
-    */
-
     
-    
+    // Ex2: Function that allows the keeper to execute users announced deposit order
+    // Params: account, view, returns liquidityMinted from internal function to create later
+    // PART2: function to execute the the executeDeposit
+    function executeAnnounceDeposit(address account) external returns(uint256 liquidityMinted) {
+
+            // Get the users order
+            StableFutureStructs.Order memory order = _announcedOrder[account];
+
+            // Decode the data inside order.orderData
+            StableFutureStructs.AnnouncedLiquidityDeposit memory liquidityDeposit = abi.decode(
+                order.orderData,
+                (StableFutureStructs.AnnouncedLiquidityDeposit)
+            );
+            
+            // Internal function that checks this...
+            _orderTimeValidity(account, order.executableAtTime);
+
+            _executeDeposit(account, liquidityDeposit);
+            
+    }
+
+
+    // Internal function to check wether the order is valid or not based on when it was announced and based on the max and min age
+    function _orderTimeValidity(address account, uint256 _executableAtTime) internal {
+        
+        // Check if the order didn't expired
+        if(block.timestamp > _executableAtTime + vault.maxExecutabilityAge()) {
+            revert StableFutureErrors.OrderHasExpired();
+        }
+
+        // Check if the order reached the executableAtTime
+        if(block.timestamp < _executableAtTime) {
+            revert StableFutureErrors.ExecutableAtTimeNotReached(_executableAtTime);
+        }
+
+        // delete the announce deposit if both condition doesn't revert
+        delete _announcedOrder[account];
+
+    }
+
+
+
+
+
+
+
+
+
+    /////////////////////////////////////////////
+    //            View Functions             //
+    /////////////////////////////////////////////
     function _orderExecutionTime() private view returns(uint64 executeAtTime) {
         // Todo: Cancel pending orders
         // Check for Minmum amount of keeperFee
         // settle fundingFees
         return executeAtTime = uint64(block.timestamp + vault.minExecutabilityAge());
     }
+
+
+
+
 
     
 

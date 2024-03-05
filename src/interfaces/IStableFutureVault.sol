@@ -6,6 +6,10 @@ import {StableFutureStructs} from "../libraries/StableFutureStructs.sol";
 
 interface IStableFutureVault {
 
+    function _executeDeposit(address account,
+                             StableFutureStructs.AnnouncedLiquidityDeposit calldata liquidityDeposit)
+                    external returns (uint256 liquidityMinted);
+                    
     function collateral() external view returns (IERC20 collateral);
 
     function depositQuote(uint256 _depositAmount) external view returns(uint256 _amountOut);

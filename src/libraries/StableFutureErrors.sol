@@ -22,7 +22,15 @@ library StableFutureErrors {
     
     error ModuleKeyEmpty();
 
-    error HighSlippage(uint256 deposit, uint256 accepted);
+    error HighSlippage(uint256 amountOut, uint256 accepted);
+    
+    error AmountToSmall(uint256 depositAmount , uint256 minDeposit);
+
+    error OrderHasExpired();
+
+    error ExecutableAtTimeNotReached(uint256 executableAtTime);
+
+    error AmountToSmall(uint256 amount, uint256 minAmount);
 
 
 

@@ -37,6 +37,9 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     /// @notice The total amount of RETH deposited in the vault
     uint256 public totalVaultDeposit;
 
+    /// @notice Minimum liquidity to provide as a first depositor
+    uint256 public constant MIN_LIQUIDITY = 10_000;
+
     /// @dev To prevent the implementation contract from being used, we invoke the _disableInitializers
     /// function in the constructor to automatically lock it when it is deployed.
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -73,25 +76,40 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     } // Contract runtime deployment(bytes code executed on EVM)
 
 
+    // Exercise:1
+    // function that to execute annnounced deposit by minting tokens and poin to the users.
+    // Params: account, StructsAnnouncDeposit to get the data
+    // returns liquidity minted
+    // TODO emit event || LATER MINT POINT
+    function _executeDeposit(address account,
+                             StableFutureStructs.AnnouncedLiquidityDeposit calldata liquidityDeposit)
+                    external returns (uint256 liquidityMinted) {
+        
+        // cach variables 
+        uint256 depositAmount = liquidityDeposit.depositAmount;
+        uint256 minAmountOut = liquidityDeposit.minAmountOut;
+
+        liquidityMinted = depositQuote(depositAmount);
+
+        if(liquidityMinted < minAmountOut) {
+            revert StableFutureErrors.HighSlippage({amountOut: amountOut, accepted: minAmountOut});
+        }
+
+        _mint(account, liquidityMinted);
+
+
+        // update total deposit in the pool
+        updateTotalVaulDeposit(depositAmount);
+
+        // Check if the liquidity provided respect the min liquidity to provide to avoid inflation
+        // attacks and position with small amount of tokens 
+
+        if(totalSupply() < MIN_LIQUIDITY) {
+            revert StableFutureErrors.AmountToSmall({amount: totalSupply(), minAmount: MIN_LIQUIDITY});
+        } 
+
+    }
     
-    /**
-    TODO: 
-    Defining the important States variables of the contract:
-    - Collateral, [x]
-    - MaxAmountOfDeposit, [x]
-    - Owner state variable [x]
-    function initilize the contract [x]
-    - Set functions params [x]
-    - Create setters function to set min and max execubility ages; [x]
-    - Create a modifier to limit access to sentive functions. [x]
-    - Init ownership, transferownership to an owner address [x]
-    - Set collateral Address [x]
-    - Initilize ERC20 tokens [x]
-    - Create a function that will calculate the depositPerShare based on the totaldeposit In the vault  the vault and totalSupply[x]
-    - Create a function depositQuote to return the amount of SFR tokens retuned for a deposit amount [x]
-    - Create function to update totalVaultDeposit each time the announce deposit is executed by the keeper. [x]
-    - TODO NEXT: Finished components that announce Deposit function needs to be executed safely.
-    */
 
 
     /////////////////////////////////////////////
