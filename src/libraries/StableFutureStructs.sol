@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.22;
 
+import {IChainlinkAggregatorV3} from "../interfaces/IChainlinkAggregatorV3.sol";
+import {IPyth} from "pyth-sdk-solidity/IPyth.sol";
 
 library StableFutureStructs {
 
@@ -23,6 +25,31 @@ library StableFutureStructs {
         // The minimum amount of tokens expected to receive back after providing liquidity
         uint256 minAmountOut;
     }
+
+
+    struct ChainLinkOracle {
+        IChainlinkAggregatorV3 chainLinkContract;
+        
+        // the oldest price that is acceptable to use.
+        uint32 maxAge; 
+    }
+
+    
+    struct PythNetworkOracle {
+        // Pyth network oracle contract
+        IPyth pythNetworkContract;
+
+        // Pyth network priceID
+        bytes32 priceId;
+
+        // the oldest price acceptable to use
+        uint32 maxAge;
+
+        // Minimum confid ratio aka expo ratio, The higher, the more confident the accuracy of the price.
+        uint32 minConfRatio;
+    }
+
+
 
 }
 
