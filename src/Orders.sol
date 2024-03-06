@@ -26,14 +26,6 @@ import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
 */
 
 
-/**
-    1-Import
-    2- Create state variable and libraries
-    [] Setting state variable: 
-     1- announcedOrders mapping to keep track of announced order;
-     2- Define a mintDeposit to announced an Order;
- */
-
 
 contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
@@ -53,32 +45,23 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     }
 
 
-    /// @notice Function to initialize this contract.
-    // Initilize the the contract with reentrancyGuard and initModule
-    // the vault as param
-    /// @dev initializer to make sure the initilize function acts as constructor(only get called/initilized once); 
+    /**
+    * @dev Initializes the orders module with a reference to the vault
+    * @param _vault The StableFutureVault contract address this module will interact with.
+    */
     function initialize(IStableFutureVault _vault) external initializer {
         __init_Module(StableModuleKeys.ORDERS_MODULE_KEY, _vault);
         __ReentrancyGuard_init();
     }
 
-    
+
 
     /**
-        TODO:
-        Function Def: function that will allow user to annonce a deposit by providing liquidity rETH(rocket pool)
-        This announced deposit will be executed by a keeper later.
-        Params: depositAmount, minAmount, keeperFees
-        Modifier: add pausable functionnalities (x)
-        - record the announceDeposit order in the _announceOrdermapping [x]
-        - 
-        - Emit the the event
-        - Create a function that will allow 
-        - Add Executable time function
-        - Check for slippage between "minAmountOut" and the Quoter function
+    * @dev Announces a deposit order, allowing keepers to execute it after a specified time.
+    * @param depositAmount The amount to be deposited.
+    * @param minAmountOut The minimum amount of tokens expected from the deposit.
+    * @param keeperFee The fee paid to the keeper for executing the deposit.
     */
-
-    // mapping(address => StableFutureStructs.Order order) public _announcedOrder;
     function announceDeposit(
             uint256 depositAmount,
             uint256 minAmountOut, 
@@ -123,9 +106,12 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     }
 
 
-    // Ex2: Function that allows the keeper to execute users announced deposit order
-    // Params: account, view, returns liquidityMinted from internal function to create later
-    // PART2: function to execute the the executeDeposit
+
+    /**
+    * @dev Executes a previously announced deposit order for the specified account.
+    * @param account The account for which the deposit order will be executed.
+    * @return liquidityMinted The amount of liquidity minted as a result of the deposit.
+    */
     function executeAnnounceDeposit(address account) external returns(uint256 liquidityMinted) {
 
             // Get the users order
@@ -151,12 +137,15 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         emit StableFutureEvents.DepositExecuted({account: account,
                                                 orderType: order.orderType,
                                                 keeperFee: order.keeperFee});
-
     }
 
 
-
-    // Internal function to check wether the order is valid or not based on when it was announced and based on the max and min age
+    
+    /**
+    * @dev Checks the validity of an order's execution time and deletes the order if valid.
+    * @param account The account associated with the order.
+    * @param _executableAtTime The timestamp when the order becomes executable.
+    */
     function _orderTimeValidity(address account, uint256 _executableAtTime) internal {
         
         // Check if the order didn't expired
@@ -179,43 +168,17 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     /////////////////////////////////////////////
     //            View Functions             //
     /////////////////////////////////////////////
+    
+    /**
+    * @dev Calculates the future timestamp when an order becomes executable.
+    * @return executeAtTime The timestamp at which a new order will become executable, based on the vault's minimum executability age.
+    */
     function _orderExecutionTime() private view returns(uint64 executeAtTime) {
         // Todo: Cancel pending orders
         // Check for Minmum amount of keeperFee
         // settle fundingFees
         return executeAtTime = uint64(block.timestamp + vault.minExecutabilityAge());
     }
-
-
-
-    //  struct AnnouncedLiquidityDeposit {
-    //     // Amount of liquidity deposited
-    //     uint256 depositAmount;
-    //     // The minimum amount of tokens expected to receive back after providing liquidity
-    //     uint256 minAmountOut;
-    // }
-
-    // enum OrderType {
-    //     None, // 1
-    //     StableDeposit, // 2 
-    //     StableWithdraw // 3f
-    // }
-
-    // struct Order {
-    //     OrderType orderType;
-    //     bytes orderData;
-    //     uint256 keeperFee; // The deposit paid upon submitting that needs to be paid / refunded on tx confirmation
-    //     uint64 executableAtTime; // The timestamp at which this order is executable at
-    // }
-
-
-
-
-
-
-
-
-    
 
 
 }

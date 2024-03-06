@@ -19,4 +19,6 @@ library StableFutureEvents {
     event NewPythNetworkOracleSet(StableFutureStructs.PythNetworkOracle newOracle);
 
     event AssetSet(address newAsset);
+
+    event MaxPriceDiffPerecentSet(uint256 maxPriceDiffPercent);
 }   

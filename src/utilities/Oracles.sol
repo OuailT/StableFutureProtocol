@@ -24,6 +24,7 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     StableFutureStructs.ChainLinkOracle public chainLinkOracle; // struct reference(assigning the struct to a variable)
     StableFutureStructs.PythNetworkOracle public pythNetworkOracle; // struct reference
 
+    uint256 public maxPriceDiffPercent;
 
     /// @dev To prevent the implementation contract from being used, we invoke the _disableInitializers
     /// function in the constructor to automatically lock it when it is deployed.
@@ -32,18 +33,21 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         _disableInitializers();
     }
 
+    
     /**
-        Exercices: 
-        - Create an Initiliaze function : Initial the module with a vault address and module key 
-        - setChainlink Oracle config function, pythNetworkOralce config function
-        - 
+        * @dev Initializes the OracleModule.
+        * @param _asset The asset contract.
+        * @param _vault The vault contract.
+        * @param _newchainLinkOracle The new ChainLinkOracle struct.
+        * @param _newPythNetworkOracle The new PythNetworkOracle struct.
+        * @param _maxPriceDiffPercent The maximum price difference percentage.
     */
-
     function initialize(
         address _asset,
         IStableFutureVault _vault,
         StableFutureStructs.ChainLinkOracle calldata _newchainLinkOracle,
-        StableFutureStructs.PythNetworkOracle calldata _newPythNetworkOracle
+        StableFutureStructs.PythNetworkOracle calldata _newPythNetworkOracle,
+        uint256 _maxPriceDiffPercent
     ) external initializer {
 
         __init_Module(StableModuleKeys.ORACLE_MODULE_KEY, _vault);
@@ -51,24 +55,27 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
         _setChainlinkOracle(_newchainLinkOracle);
         _setPythNetworkOracle(_newPythNetworkOracle);
+        _setMaxPriceDiffPercent(_maxPriceDiffPercent);
         _setAsset(_asset);
-        
     } 
 
 
 
-    // Create a function to set chainlink oracle config
+    /**
+        * @dev Sets the ChainLinkOracle configuration.
+        * @param newOracle The new ChainLinkOracle struct to be set.
+    */
     function _setChainlinkOracle(StableFutureStructs.ChainLinkOracle calldata newOracle) internal {
         
-        // Do some sanity checks
+        // Sanity checks
         if(address(newOracle.chainLinkContract) == address(0) || 
             newOracle.maxAge <= 0 ) revert StableFutureErrors.InvalidOracleConfig(); 
 
-        // set chainLink oracle config to the struct
-        chainLinkOracle = StableFutureStructs.ChainLinkOracle({
+        // set chainLink oracle config to struct
+        chainLinkOracle = StableFutureStructs.ChainLinkOracle(
             newOracle.chainLinkContract,
             newOracle.maxAge
-        });
+        );
 
         // Emit the event
         emit StableFutureEvents.NewChainlinkOracleSet(newOracle);
@@ -76,7 +83,10 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
 
 
-    // Create function to set the pyth netwrok oracle config
+    /**
+        * @dev Sets the PythNetworkOracle configuration.
+        * @param newOracle The new PythNetworkOracle struct to be set.
+    */
     function _setPythNetworkOracle(StableFutureStructs.PythNetworkOracle calldata newOracle) internal {
         
         // Check the validity of these configs
@@ -87,41 +97,48 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
 
         // Set new Pyth network config to struct
-        pythNetworkOracle = StableFutureStructs.PythNetworkOracle ({
+        pythNetworkOracle = StableFutureStructs.PythNetworkOracle (
             newOracle.pythNetworkContract,
             newOracle.priceId,
             newOracle.maxAge,
             newOracle.minConfidenceRatio
-        });
+        );
 
-        emit StableFutureEvents.NewPythNetworkOracleSet(newOracle); // check it later and why and how we choose the right params
+        emit StableFutureEvents.NewPythNetworkOracleSet(newOracle); 
     }
 
-    
 
-    // Function to set a new asset
+
+    /**
+        * @dev Sets the asset address.
+        * @param _asset The new asset address to be set.
+    */
     function _setAsset(address _asset) internal {
+    
         if(_asset == address(0)) revert StableFutureErrors.ZeroAddress("newAsset");
 
         asset = _asset;
 
-        emit StableFutureEvents.AssetSet(asset);
+        emit StableFutureEvents.AssetSet(_asset);
     }
 
 
 
+    /** * @dev the priceDiff between chainlink and Pyth must be bewteen 0(no difference is tolerated) and
+               maxPriceDiffPerecent(any difference is acceptable) 1e18 = 100%
+        * @dev Sets the maximum price difference percentage.
+        * @param _maxPriceDiffPercent The new maximum price difference percentage to be set.
+    */
+    function _setMaxPriceDiffPercent(uint256 _maxPriceDiffPercent) internal {
+        
+        if(_maxPriceDiffPercent == 0 || _maxPriceDiffPercent > 1e18) {
+            revert StableFutureErrors.InvalidOracleConfig();
+        } 
+         
+        maxPriceDiffPercent = _maxPriceDiffPercent;
 
-    // struct PythNetworkOracle {
-    //     // Pyth network oracle contract
-    //     IPyth pythNetworkContract;
+        emit StableFutureEvents.MaxPriceDiffPerecentSet(_maxPriceDiffPercent);
+    }
 
-    //     // Pyth network priceID
-    //     bytes32 priceId;
 
-    //     // the oldest price acceptable to use
-    //     uint32 maxAge;
-
-    //     // Minimum confid ratio aka expo ratio, The higher, the more confident the accuracy of the price.
-    //     uint32 minConfRatio;
-    // }
 }

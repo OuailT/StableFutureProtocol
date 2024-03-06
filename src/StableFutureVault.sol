@@ -51,11 +51,11 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
 
     
     /**
-        Set functions params:
-        Owner, 
-        maxExecutabilityAge,
-        minExecutabilityAge
-    
+        * @dev Initializes the contract 
+        * @param _owner The owner of the contract.
+        * @param _collateral The collateral token address.
+        * @param _minExecutabilityAge Minimum age for executability of orders.
+        * @param _maxExecutabilityAge Maximum age for executability of orders.
     */
     function initialize( 
         address _owner,
@@ -78,7 +78,12 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
 
 
 
-
+    /**
+        * @dev Mints liquidity tokens based on deposited amount, ensuring minimum output and pool requirements are met.
+        * @param account The account receiving the liquidity tokens.
+        * @param liquidityDeposit Contains deposit amount and minimum output required.
+        * @return liquidityMinted Amount of liquidity tokens minted.
+    */
     function _executeDeposit(address account,
                              StableFutureStructs.AnnouncedLiquidityDeposit calldata liquidityDeposit)
                     external returns (uint256 liquidityMinted) {
@@ -117,7 +122,10 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     /////////////////////////////////////////////
 
 
-    /// @notice Function to calculate the total collateral per share based on the current totalSupply, totalVaultDeposit
+    /**
+    * @dev Calculates the total deposit value per share of the pool.
+    * @return _collateralPerShare The amount of deposit per share, scaled by `10 ** decimals()`.
+    */
     function totalDepositPerShare() internal view returns(uint256 _collateralPerShare) {
         uint256 totalSupply = totalSupply();
 
@@ -129,7 +137,11 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     }
 
     
-    /// @notice Quoter function to calculate the the amount out of SFR tokens for a _deposit amount
+    /**
+    * @dev Estimates the amount of liquidity tokens to be minted for a given deposit amount.
+    * @param _depositAmount The amount of tokens being deposited.
+    * @return _amountOut Estimated liquidity tokens to be minted.
+    */
     function depositQuote(uint256 _depositAmount) public view returns(uint256 _amountOut) {
             _amountOut = _depositAmount * (10 ** decimals()) / totalDepositPerShare();
     }
@@ -138,7 +150,10 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     // NOTE: Allow only this contract/Module to called this function or other contract can called it
     // If it's only called by this contract I'll set it up to private
     // THIS function must be added to the execute announcedDeposit to update the totalVaultDeposit
-    /// @notice Function to update totalVaultDeposit each time the announce deposit is executed by the keeper
+    /**
+    * @dev Updates the total deposit amount in the vault with a new deposit.
+    * @param _newDeposit Amount to be added to the total vault deposit.
+    */
     function updateTotalVaulDeposit(uint256 _newDeposit) public {
         
         // totalVaultDeposit
@@ -152,6 +167,12 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     /////////////////////////////////////////////
     //            Setter Functions             //
     /////////////////////////////////////////////
+    
+    /**
+    * @dev Sets the minimum and maximum age for an order's executability.
+    * @param _minExecutabilityAge The minimum age an order must reach to be executable.
+    * @param _maxExecutabilityAge The maximum age an order can reach before it's no longer executable.
+    */
     function setExecutabilityAge(uint64 _minExecutabilityAge, uint64 _maxExecutabilityAge) public onlyOwner  {
         if(_minExecutabilityAge == 0) revert StableFutureErrors.ZeroValue("minExecutabilityAge");
         if(_maxExecutabilityAge == 0) revert StableFutureErrors.ZeroValue("maxExecutabilityAge");
