@@ -46,7 +46,7 @@ library StableFutureStructs {
         uint32 maxAge;
 
         // Minimum confid ratio aka expo ratio, The higher, the more confident the accuracy of the price.
-        uint32 minConfRatio;
+        uint32 minConfidenceRatio;
     }
 
 

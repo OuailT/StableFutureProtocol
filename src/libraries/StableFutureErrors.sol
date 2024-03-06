@@ -29,5 +29,7 @@ library StableFutureErrors {
     error ExecutableAtTimeNotReached(uint256 executableAtTime);
 
     error AmountToSmall(uint256 depositAmount, uint256 minDeposit);
+
+    error InvalidOracleConfig();
     
 }

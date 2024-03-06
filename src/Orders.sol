@@ -58,7 +58,7 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     // the vault as param
     /// @dev initializer to make sure the initilize function acts as constructor(only get called/initilized once); 
     function initialize(IStableFutureVault _vault) external initializer {
-        __init_Module(StableModuleKeys.ORDERS, _vault);
+        __init_Module(StableModuleKeys.ORDERS_MODULE_KEY, _vault);
         __ReentrancyGuard_init();
     }
 
@@ -155,6 +155,7 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     }
 
 
+
     // Internal function to check wether the order is valid or not based on when it was announced and based on the max and min age
     function _orderTimeValidity(address account, uint256 _executableAtTime) internal {
         
@@ -175,12 +176,6 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
 
 
-
-
-
-
-
-
     /////////////////////////////////////////////
     //            View Functions             //
     /////////////////////////////////////////////
@@ -191,11 +186,6 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         return executeAtTime = uint64(block.timestamp + vault.minExecutabilityAge());
     }
 
-
-
-
-
-    
 
 
     //  struct AnnouncedLiquidityDeposit {

@@ -14,4 +14,9 @@ library StableFutureEvents {
     // Emit when an deposit is executed
     event DepositExecuted(address account, StableFutureStructs.OrderType orderType, uint256 keeperFee);
     
+    event NewChainlinkOracleSet(StableFutureStructs.ChainLinkOracle newOracle);
+
+    event NewPythNetworkOracleSet(StableFutureStructs.PythNetworkOracle newOracle);
+
+    event AssetSet(address newAsset);
 }   
