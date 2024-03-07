@@ -114,8 +114,8 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
         emit StableFutureEvents.Deposit(account, depositAmount, liquidityMinted);
 
     }
-    
 
+    
 
     /////////////////////////////////////////////
     //            View Functions             //
@@ -135,7 +135,7 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
              _collateralPerShare = 1e18;
         }
     }
-    
+
 
     
     /**

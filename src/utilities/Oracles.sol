@@ -12,7 +12,9 @@ import {ReentrancyGuardUpgradeable} from "openzeppelin-contracts-upgradeable/con
 import {ModuleUpgradeable} from "../abstracts/ModuleUpgradeable.sol";
 import {IStableFutureVault} from "../interfaces/IStableFutureVault.sol";
 import {IChainlinkAggregatorV3} from "../interfaces/IChainlinkAggregatorV3.sol";
-
+import {IPyth} from "pyth-sdk-solidity/IPyth.sol";
+import {PythStructs} from "pyth-sdk-solidity/PythStructs.sol";
+import {safeCast} from "openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
 
 
 contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
@@ -20,6 +22,7 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     address public asset; // Asset to price
 
     using SafeERC20 for IERC20;
+    using  for *;
 
     // Structs that represent both PythNetowrkOracle, chainlinkOracle.
     StableFutureStructs.ChainlinkOracle public chainlinkOracle; // struct reference(assigning the struct to a variable)
@@ -94,6 +97,44 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
     }
 
+        
+    // Exerices function to get the price of the address of an assest on Pyth network
+    // func definition: above
+    // Params: none
+    // returns value: timestamp, invalid, price
+
+    function _getPythNetworkPrice() external view returns(uint256 price, bool invalid, uint256 timestamp) {
+        
+        // get the Pyth oracle address contract
+        IPyth oracle = pythNetworkOracle.pythNetworkContract;
+
+        // get the price
+        try oracle.getPriceNoOlderThan(pythNetworkOracle.priceId, pythNetworkOracle.maxAge) returns (
+            PythStructs.Price memory oracleData
+        ) {
+
+            // Check if the price is not invalid based on the passed params to getPriceNoOlderThan
+            if(oracleData.price > 0 && oracleData.conf > 0 && oracleData.expo < 0 ) {
+                
+                // scale the price to 19 decimals
+                price = ((oracleData.price).toUint256()) * (10 ** (18 + oracleData.expo).toUint256());
+            
+            } else {
+                invalid = true
+            }
+
+            // check if the price is accurate(respecte the minimum price confidence)
+            // Devide the returns price but the returned confidence
+            if(oracleData.price / oracleData.conf <  pythNetworkOracle.minConfidenceRatio) {
+                revert StableFutureErrors.PriceStale(StableFutureErrors.PriceStale.Pythoracle);
+            }
+
+        } catch {
+            invalid = true;
+        }
+
+    }
+
 
 
 
@@ -125,6 +166,12 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         // Emit the event
         emit StableFutureEvents.NewchainlinkOracleSet(newOracle);
     }
+
+
+
+    
+
+
 
 
 
