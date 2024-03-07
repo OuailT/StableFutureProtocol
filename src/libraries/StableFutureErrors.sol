@@ -6,8 +6,8 @@ import {StableFutureStructs} from "./StableFutureStructs.sol";
 library StableFutureErrors {
 
     enum PriceSource {
-            onChain, 
-            OffChain
+            chainlinkOracle, 
+            Pythoracle
     }
     
     error ZeroAddress(string variableName);
@@ -31,5 +31,9 @@ library StableFutureErrors {
     error AmountToSmall(uint256 depositAmount, uint256 minDeposit);
 
     error InvalidOracleConfig();
+
+    error PriceStale(PriceSource priceSource);
+
+    error InvalidPrice(PriceSource priceSource);
     
 }

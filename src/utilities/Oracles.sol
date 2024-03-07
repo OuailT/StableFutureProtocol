@@ -11,6 +11,7 @@ import {StableModuleKeys} from "../libraries/StableModuleKeys.sol";
 import {ReentrancyGuardUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {ModuleUpgradeable} from "../abstracts/ModuleUpgradeable.sol";
 import {IStableFutureVault} from "../interfaces/IStableFutureVault.sol";
+import {IChainlinkAggregatorV3} from "../interfaces/IChainlinkAggregatorV3.sol";
 
 
 
@@ -20,8 +21,8 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
     using SafeERC20 for IERC20;
 
-    // Structs that represent both PythNetowrkOracle, ChainlinkOracle.
-    StableFutureStructs.ChainLinkOracle public chainLinkOracle; // struct reference(assigning the struct to a variable)
+    // Structs that represent both PythNetowrkOracle, chainlinkOracle.
+    StableFutureStructs.ChainlinkOracle public chainlinkOracle; // struct reference(assigning the struct to a variable)
     StableFutureStructs.PythNetworkOracle public pythNetworkOracle; // struct reference
 
     uint256 public maxPriceDiffPercent;
@@ -38,14 +39,14 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         * @dev Initializes the OracleModule.
         * @param _asset The asset contract.
         * @param _vault The vault contract.
-        * @param _newchainLinkOracle The new ChainLinkOracle struct.
+        * @param _newchainlinkOracle The new chainlinkOracle struct.
         * @param _newPythNetworkOracle The new PythNetworkOracle struct.
         * @param _maxPriceDiffPercent The maximum price difference percentage.
     */
     function initialize(
         address _asset,
         IStableFutureVault _vault,
-        StableFutureStructs.ChainLinkOracle calldata _newchainLinkOracle,
+        StableFutureStructs.ChainlinkOracle calldata _newchainlinkOracle,
         StableFutureStructs.PythNetworkOracle calldata _newPythNetworkOracle,
         uint256 _maxPriceDiffPercent
     ) external initializer {
@@ -53,7 +54,7 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         __init_Module(StableModuleKeys.ORACLE_MODULE_KEY, _vault);
         __ReentrancyGuard_init();
 
-        _setChainlinkOracle(_newchainLinkOracle);
+        _setchainlinkOracle(_newchainlinkOracle);
         _setPythNetworkOracle(_newPythNetworkOracle);
         _setMaxPriceDiffPercent(_maxPriceDiffPercent);
         _setAsset(_asset);
@@ -61,24 +62,68 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
 
 
 
+
+    // Exerices: Create a function to get the price of chainlink price: DONE
+    // Param: none
+    // returns price, timestamp
+    // Verification 
+    function _getChainlinkPrice() external view returns(uint256 timestamp, uint256 price) {
+
+        // Get the contract address of chainlink contract associtated with the pair
+        IChainlinkAggregatorV3 oracle = chainlinkOracle.chainlinkOracle;
+        
+        if(address(oracle) == address(0)) {
+            revert StableFutureErrors.ZeroAddress("oracle");
+        }
+
+        // get the price using latestRoundData
+        (, int256 answer,,uint256 updatedAt,)= oracle.latestRoundData();
+
+        
+        // Check if the price is stale or within a certain freshness window
+        if(block.timestamp - updatedAt > chainlinkOracle.maxAge) {
+            revert StableFutureErrors.PriceStale(StableFutureErrors.PriceSource.chainlinkOracle); // add which price is stale
+        }
+
+        if(answer > 0) {
+            price = uint256(answer) * (10**10); // convert the return value from 8 to 18 decimals
+            timestamp = updatedAt;
+        } else {
+            revert StableFutureErrors.InvalidPrice(StableFutureErrors.PriceSource.chainlinkOracle);
+        }
+
+    }
+
+
+
+
+
+
+
+
+    /////////////////////////////////////////////
+    //            Setter Functions             //
+    /////////////////////////////////////////////
+
+
     /**
-        * @dev Sets the ChainLinkOracle configuration.
-        * @param newOracle The new ChainLinkOracle struct to be set.
+        * @dev Sets the chainlinkOracle configuration.
+        * @param newOracle The new chainlinkOracle struct to be set.
     */
-    function _setChainlinkOracle(StableFutureStructs.ChainLinkOracle calldata newOracle) internal {
+    function _setchainlinkOracle(StableFutureStructs.ChainlinkOracle calldata newOracle) internal {
         
         // Sanity checks
-        if(address(newOracle.chainLinkContract) == address(0) || 
+        if(address(newOracle.chainlinkOracle) == address(0) || 
             newOracle.maxAge <= 0 ) revert StableFutureErrors.InvalidOracleConfig(); 
 
         // set chainLink oracle config to struct
-        chainLinkOracle = StableFutureStructs.ChainLinkOracle(
-            newOracle.chainLinkContract,
+        chainlinkOracle = StableFutureStructs.ChainlinkOracle(
+            newOracle.chainlinkOracle,
             newOracle.maxAge
         );
 
         // Emit the event
-        emit StableFutureEvents.NewChainlinkOracleSet(newOracle);
+        emit StableFutureEvents.NewchainlinkOracleSet(newOracle);
     }
 
 

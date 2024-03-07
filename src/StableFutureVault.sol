@@ -135,6 +135,7 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
              _collateralPerShare = 1e18;
         }
     }
+    
 
     
     /**

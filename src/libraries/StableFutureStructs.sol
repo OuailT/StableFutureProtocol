@@ -19,6 +19,7 @@ library StableFutureStructs {
         uint64 executableAtTime; // The timestamp at which this order is executable at
     }
 
+
     struct AnnouncedLiquidityDeposit {
         // Amount of liquidity deposited
         uint256 depositAmount;
@@ -27,8 +28,8 @@ library StableFutureStructs {
     }
 
 
-    struct ChainLinkOracle {
-        IChainlinkAggregatorV3 chainLinkContract;
+    struct ChainlinkOracle {
+        IChainlinkAggregatorV3 chainlinkOracle;
         
         // the oldest price that is acceptable to use.
         uint32 maxAge; 
