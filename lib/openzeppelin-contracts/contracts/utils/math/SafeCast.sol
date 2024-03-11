@@ -190,6 +190,7 @@ library SafeCast {
         return uint184(value);
     }
 
+    
     /**
      * @dev Returns the downcasted uint176 from uint256, reverting on
      * overflow (when the input is greater than largest uint176).
@@ -564,6 +565,7 @@ library SafeCast {
         return uint8(value);
     }
 
+    
     /**
      * @dev Converts a signed int256 into an unsigned uint256.
      *
