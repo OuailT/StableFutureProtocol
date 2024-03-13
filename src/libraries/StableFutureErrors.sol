@@ -13,7 +13,9 @@ library StableFutureErrors {
 
     error ZeroValue(string variableName);
 
-    error Paused(bytes moduleKey);
+    error Paused(bytes32 moduleKey);
+
+    error InvalidValue(uint256 value);
 
     error onlyOwner(address msgSender);
 
@@ -34,4 +36,14 @@ library StableFutureErrors {
     error PriceStale(PriceSource priceSource);
 
     error InvalidPrice(PriceSource priceSource);
+
+    error ExcessivePriceDeviation(uint256 priceDiffPercent);
+
+    error RefundFailed();
+
+    error updatePriceDataEmpty();
+
+    error InvalidBalance();
+
+    error WithdrawToSmall();
 }

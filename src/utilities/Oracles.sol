@@ -15,12 +15,14 @@ import {IPyth} from "pyth-sdk-solidity/IPyth.sol";
 import {PythStructs} from "pyth-sdk-solidity/PythStructs.sol";
 import {SafeCast} from "openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
 import {SignedMath} from "openzeppelin-contracts/contracts/utils/math/SignedMath.sol";
+import {IOracles} from "../interfaces/IOracles.sol";
 
 contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     address public asset; // Asset to price
 
     using SafeERC20 for IERC20;
     using SafeCast for *;
+    using SignedMath for int256;
 
     // Structs that represent both PythNetowrkOracle, chainlinkOracle.
     StableFutureStructs.ChainlinkOracle public chainlinkOracle; // struct reference(assigning the struct to a variable)
@@ -48,9 +50,10 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         IStableFutureVault _vault,
         StableFutureStructs.ChainlinkOracle calldata _newchainlinkOracle,
         StableFutureStructs.PythNetworkOracle calldata _newPythNetworkOracle,
+        IOracles _oracles,
         uint256 _maxPriceDiffPercent
     ) external initializer {
-        __init_Module(StableModuleKeys.ORACLE_MODULE_KEY, _vault);
+        __init_Module(StableModuleKeys.ORACLE_MODULE_KEY, _vault, _oracles);
         __ReentrancyGuard_init();
 
         _setchainlinkOracle(_newchainlinkOracle);
@@ -59,11 +62,44 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         _setAsset(_asset);
     }
 
-    
-    
+    function updatePythPrice(
+        address sender,
+        bytes[] calldata updatePriceData
+    ) external payable nonReentrant {
+        // get the fees to pay for updatePriceData
+        uint256 fee = pythNetworkOracle.pythNetworkContract.getUpdateFee(
+            updatePriceData
+        );
+
+        // update the price
+        pythNetworkOracle.pythNetworkContract.updatePriceFeeds{value: fee}(
+            updatePriceData
+        );
+
+        // refund any remaining ETH
+        if (msg.value - fee > 0) {
+            (bool succ, ) = sender.call{value: msg.value - fee}("");
+            if (!succ) revert StableFutureErrors.RefundFailed();
+        }
+    }
+
     function getPrice(
         uint32 maxAge
     ) external view returns (uint256 price, uint256 timestamp) {
+        (price, timestamp) = _getPrice(maxAge);
+    }
+
+    function getPrice()
+        external
+        view
+        returns (uint256 price, uint256 timestamp)
+    {
+        (price, timestamp) = _getPrice(type(uint32).max);
+    }
+
+    function _getPrice(
+        uint32 maxAge
+    ) internal view returns (uint256 price, uint256 timestamp) {
         // 1- Retrieve both prices from both oracles
         (
             uint256 chainlinkTimestamp,
@@ -81,11 +117,11 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         uint256 priceDiff = (int256(chainlinkPrice) - int256(pythPrice)).abs(); // take unsigned value and return signe value(SignedMath)
 
         // 3- Calculate the percentage of the priceDiff
-        uint256 priceDiffPercent = ((priceDiff * 1e18) / chainlinkOracle); // 5%, 3%, 4% etc
+        uint256 priceDiffPercent = ((priceDiff * 1e18) / chainlinkPrice); // 5%, 3%, 4% etc
 
         // 4- check if the priceDiffPercent is not greater than maxDiffPrice
         if (priceDiffPercent > maxPriceDiffPercent) {
-            // revert check the right error to set
+            revert StableFutureErrors.ExcessivePriceDeviation(priceDiffPercent);
         }
 
         // check which the price is the most fresh based on validity and time
@@ -104,13 +140,13 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         }
 
         if (timestamp + maxAge < block.timestamp) {
-            revert PriceStale(
-                pythPriceUsed ? StableFutureErrors.PriceSource.pythOracle :
-                StableFutureErrors.PriceSource.chainlinkOracle
-            )
+            revert StableFutureErrors.PriceStale(
+                pythPriceUsed
+                    ? StableFutureErrors.PriceSource.pythOracle
+                    : StableFutureErrors.PriceSource.chainlinkOracle
+            );
         }
     }
-
 
     function _getChainlinkPrice()
         internal
@@ -143,11 +179,6 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
             );
         }
     }
-
-    // Exerices function to get the price of the address of an assest on Pyth network
-    // func definition: above
-    // Params: none
-    // returns value: timestamp, invalid, price
 
     function _getPythNetworkPrice()
         internal
@@ -185,7 +216,7 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
                 // Devide the returns price but the returned confidence
                 // conf price should always be greater than minConfiRatio
                 if (
-                    oracleData.price / uint64(oracleData.conf) <
+                    oracleData.price / int64(oracleData.conf) <
                     int32(pythNetworkOracle.minConfidenceRatio)
                 ) {
                     invalid = true;
@@ -278,5 +309,23 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         maxPriceDiffPercent = _maxPriceDiffPercent;
 
         emit StableFutureEvents.MaxPriceDiffPerecentSet(_maxPriceDiffPercent);
+    }
+
+    /////////////////////////////////////////////
+    //             Owner Functions             //
+    /////////////////////////////////////////////
+
+    function setOracles(
+        address _asset,
+        StableFutureStructs.PythNetworkOracle calldata newPythOracle,
+        StableFutureStructs.ChainlinkOracle calldata newChainlinkOracle
+    ) external onlyOwner {
+        _setAsset(_asset);
+        _setchainlinkOracle(newChainlinkOracle);
+        _setPythNetworkOracle(newPythOracle);
+    }
+
+    function setNewMaxDiffPercent(uint256 _maxDiffPercent) external onlyOwner {
+        _setMaxPriceDiffPercent(_maxDiffPercent);
     }
 }

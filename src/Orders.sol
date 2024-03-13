@@ -10,7 +10,7 @@ import {ModuleUpgradeable} from "./abstracts/ModuleUpgradeable.sol";
 import {StableFutureStructs} from "./libraries/StableFutureStructs.sol";
 import {StableFutureEvents} from "./libraries/StableFutureEvents.sol";
 import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
-
+import {IOracles} from "./interfaces/IOracles.sol";
 
 /**
     NOTE:
@@ -25,17 +25,14 @@ import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
 
 */
 
-
-
 contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
-
     uint256 public constant MIN_DEPOSIT = 1e16;
 
     /// @dev mapping to store all the announced Orders in encoded format
-    mapping(address => StableFutureStructs.Order order) public _announcedOrder;
+    mapping(address account => StableFutureStructs.Order order)
+        public _announcedOrder;
 
     using SafeERC20 for IERC20;
-
 
     /// @dev To prevent the implementation contract from being used, we invoke the _disableInitializers
     /// function in the constructor to automatically lock it when it is deployed.
@@ -44,57 +41,69 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         _disableInitializers();
     }
 
-
     /**
-    * @dev Initializes the orders module with a reference to the vault
-    * @param _vault The StableFutureVault contract address this module will interact with.
-    */
-    function initialize(IStableFutureVault _vault) external initializer {
-        __init_Module(StableModuleKeys.ORDERS_MODULE_KEY, _vault);
+     * @dev Initializes the orders module with a reference to the vault
+     * @param _vault The StableFutureVault contract address this module will interact with.
+     */
+    function initialize(
+        IStableFutureVault _vault,
+        IOracles _oracles
+    ) external initializer {
+        __init_Module(StableModuleKeys.ORDERS_MODULE_KEY, _vault, _oracles);
         __ReentrancyGuard_init();
     }
 
-
-
     /**
-    * @dev Announces a deposit order, allowing keepers to execute it after a specified time.
-    * @param depositAmount The amount to be deposited.
-    * @param minAmountOut The minimum amount of tokens expected from the deposit.
-    * @param keeperFee The fee paid to the keeper for executing the deposit.
-    */
+     * @dev Announces a deposit order, allowing keepers to execute it after a specified time.
+     * @param depositAmount The amount of collateral to be deposited.
+     * @param minAmountOut The minimum amount of SFR tokens expected from the deposit.
+     * @param keeperFee The fee paid to the keeper for executing the deposit.
+     */
     function announceDeposit(
-            uint256 depositAmount,
-            uint256 minAmountOut, 
-            uint256 keeperFee) public {
-        
+        uint256 depositAmount,
+        uint256 minAmountOut,
+        uint256 keeperFee
+    ) public whenNotPaused {
         // Calculate the time when the order becomes executable by the keeper
         uint64 executableAtTime = _orderExecutionTime();
 
         // Check for minimum deposit
-        if(depositAmount < MIN_DEPOSIT) {
-            revert StableFutureErrors.AmountToSmall({depositAmount: depositAmount, minDeposit: MIN_DEPOSIT});
+        if (depositAmount < MIN_DEPOSIT) {
+            revert StableFutureErrors.AmountToSmall({
+                depositAmount: depositAmount,
+                minDeposit: MIN_DEPOSIT
+            });
         }
-        
+
         // Check if deposit amount is below a minimum threshold
-        uint256 amountOut = vault.depositQuote(depositAmount);
+        uint256 expectedAmountOut = vault.depositQuote(depositAmount);
 
         /// Check for slippage
-        if(amountOut < minAmountOut) revert StableFutureErrors.HighSlippage({amountOut: amountOut, accepted: minAmountOut});
-        
+        if (expectedAmountOut < minAmountOut)
+            revert StableFutureErrors.HighSlippage({
+                amountOut: expectedAmountOut,
+                accepted: minAmountOut
+            });
 
         // record the announceDeposit order in the _announceOrdermapping [x]
         _announcedOrder[msg.sender] = StableFutureStructs.Order({
             orderType: StableFutureStructs.OrderType.Deposit,
             orderData: abi.encode(
                 StableFutureStructs.AnnouncedLiquidityDeposit({
-                depositAmount: depositAmount, minAmountOut: minAmountOut})
+                    depositAmount: depositAmount,
+                    minAmountOut: minAmountOut
+                })
             ),
             keeperFee: keeperFee,
             executableAtTime: executableAtTime
         });
-        
+
         // Transfer rETh from msg.sender to this address(this) which will transfer it later to the vault when the annonced order is executed(x)
-        vault.collateral().safeTransferFrom(msg.sender, address(this), depositAmount + keeperFee);
+        vault.collateral().safeTransferFrom(
+            msg.sender,
+            address(this),
+            depositAmount + keeperFee
+        );
 
         // Emit Event
         emit StableFutureEvents.OrderAnnounced({
@@ -102,87 +111,179 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
             orderType: StableFutureStructs.OrderType.Deposit,
             keeperFee: keeperFee
         });
-        
     }
 
-    
+    // Exercice: Funciton to annonce withdraw of collateral and burn LP token
+    // Func params: amountWithdraw, minAmountout, KeeperFee
+    // modifier: none
+    // returns: None
+    function annonceWithdraw(
+        uint256 withdrawAmount,
+        uint256 minAmountOut,
+        uint256 keeperFee
+    ) public whenNotPaused {
+
+        // 1- calculate how much rETH the user will withdraw by burning a certain amount LP token
+        uint64 executableAtTime = _orderExecutionTime();
+
+        // Check if the user has enough SFR token to announce withdraw
+
+        uint256 userBalance = IERC20(address(vault).balanceOf(msg.sender));
+
+        if(userBalance < withdrawAmount) revert FutureStableErrors.InvalidBalance();
+
+        {
+            uint256 expectedAmountOut = vault.withdrawQuote(withdrawAmount);
+
+            // expected Amount Out should always be greater than KeeperFees
+            if(expectedAmountOut <= keeperFee) revert FutureStableErrors.WithdrawToSmall();
+
+            // Since we pay the keeper with rETH we must deduct the keeperFee before checking for slippage.
+            expectedAmountOut -= keeperFee;
+
+            if (expectedAmountOut < minAmountOut) {
+                revert StableFutureErrors.HighSlippage({
+                    amountOut: expectedAmountOut,
+                    accepted: minAmountOut
+                });
+            }
+            
+        }
+
+        // TODO add locked functionnalities(ERC20LockabaleUpgradeable)
+
+        // Store the order announcement info
+        _announcedOrder[msg.sender] = StableFutureStructs.Order({
+            orderType: StableFutureStructs.OrderType.Withdraw,
+            orderData: abi.encode(
+                StableFutureStructs.AnnouncedLiquidityWithdraw({
+                    withdrawAmount: withdrawAmount,
+                    minAmountOut: minAmountOut
+                });
+            );
+            keeperFee: keeperFee,
+            executableAtTime: executableAtTime
+        });
+
+
+        StableFutureEvents.OrderAnnounced({
+            account: msg.sender,
+            orderType: FutureStableStructs.OrderType.Withdraw,
+            keeperFee: keeperFee
+        });
+
+    }
+
+
+
+
+    function executeOrder(
+        address account,
+        bytes[] calldata updatePriceData
+    ) external payable whenNotPaused nonReentrant {
+        // Make sure that keeper passed non empty array to avoid price update
+        if (updatePriceData.length == 0)
+            revert StableFutureErrors.updatePriceDataEmpty();
+
+        // 1- Internal function to update the price of Pyth each time this function is called for the user to get the most recent
+        // price for his order to be executed.
+        IOracles(oracles).updatePythPrice(account, updatePriceData);
+
+        // get the orderType of the account
+        StableFutureStructs.OrderType orderType = _announcedOrder[account]
+            .orderType;
+
+        if (orderType == StableFutureStructs.OrderType.None) return;
+
+        if (orderType == StableFutureStructs.OrderType.Deposit) {
+            _executeAnnounceDeposit(account);
+        }
+    }
 
     /**
-    * @dev Executes a previously announced deposit order for the specified account.
-    * @param account The account for which the deposit order will be executed.
-    * @return liquidityMinted The amount of liquidity minted as a result of the deposit.
-    */
-    function executeAnnounceDeposit(address account) external returns(uint256 liquidityMinted) {
+     * @dev Executes a previously announced deposit order for the specified account.
+     * @param account The account for which the deposit order will be executed.
+     * @return liquidityMinted The amount of liquidity minted as a result of the deposit.
+     */
+    function _executeAnnounceDeposit(
+        address account
+    ) internal returns (uint256 liquidityMinted) {
+        // Get the users order
+        StableFutureStructs.Order memory order = _announcedOrder[account];
 
-            // Get the users order
-            StableFutureStructs.Order memory order = _announcedOrder[account];
-
-            // Decode the data inside order.orderData
-            StableFutureStructs.AnnouncedLiquidityDeposit memory liquidityDeposit = abi.decode(
+        // Decode the data inside order.orderData
+        StableFutureStructs.AnnouncedLiquidityDeposit
+            memory liquidityDeposit = abi.decode(
                 order.orderData,
                 (StableFutureStructs.AnnouncedLiquidityDeposit)
             );
-            
 
-            _orderTimeValidity(account, order.executableAtTime);
+        _orderTimeValidity(account, order.executableAtTime);
 
-        liquidityMinted = IStableFutureVault(vault)._executeDeposit(account, liquidityDeposit);
+        liquidityMinted = IStableFutureVault(vault)._executeDeposit(
+            account,
+            liquidityDeposit
+        );
 
         // Transfer fees to the keeper
-        vault.collateral().safeTransfer({to: msg.sender, value: order.keeperFee});
+        vault.collateral().safeTransfer({
+            to: msg.sender,
+            value: order.keeperFee
+        });
 
         // Transfer depositAmount to the vault
-        vault.collateral().safeTransfer({to: address(vault), value: liquidityDeposit.depositAmount});
+        vault.collateral().safeTransfer({
+            to: address(vault),
+            value: liquidityDeposit.depositAmount
+        });
 
-        emit StableFutureEvents.DepositExecuted({account: account,
-                                                orderType: order.orderType,
-                                                keeperFee: order.keeperFee});
+        emit StableFutureEvents.DepositExecuted({
+            account: account,
+            orderType: order.orderType,
+            keeperFee: order.keeperFee
+        });
     }
 
-         
-        
     /**
-    * @dev Checks the validity of an order's execution time and deletes the order if valid.
-    * @param account The account associated with the order.
-    * @param _executableAtTime The timestamp when the order becomes executable.
-    */
-    function _orderTimeValidity(address account, uint256 _executableAtTime) internal {
-        
+     * @dev Checks the validity of an order's execution time and deletes the order if valid.
+     * @param account The account associated with the order.
+     * @param _executableAtTime The timestamp when the order becomes executable.
+     */
+    function _orderTimeValidity(
+        address account,
+        uint256 _executableAtTime
+    ) internal {
         // Check if the order didn't expired
-        if(block.timestamp > _executableAtTime + vault.maxExecutabilityAge()) {
+        if (block.timestamp > _executableAtTime + vault.maxExecutabilityAge()) {
             revert StableFutureErrors.OrderHasExpired();
         }
 
         // Check if the order reached the executableAtTime
-        if(block.timestamp < _executableAtTime) {
-            revert StableFutureErrors.ExecutableAtTimeNotReached(_executableAtTime);
+        if (block.timestamp < _executableAtTime) {
+            revert StableFutureErrors.ExecutableAtTimeNotReached(
+                _executableAtTime
+            );
         }
 
         // delete the announce deposit if both condition doesn't revert
         delete _announcedOrder[account];
-        
     }
-
-       
-
-
-
-
 
     /////////////////////////////////////////////
     //            View Functions             //
     /////////////////////////////////////////////
-    
+
     /**
-    * @dev Calculates the future timestamp when an order becomes executable.
-    * @return executeAtTime The timestamp at which a new order will become executable, based on the vault's minimum executability age.
-    */
-    function _orderExecutionTime() private view returns(uint64 executeAtTime) {
+     * @dev Calculates the future timestamp when an order becomes executable.
+     * @return executeAtTime The timestamp at which a new order will become executable, based on the vault's minimum executability age.
+     */
+    function _orderExecutionTime() private view returns (uint64 executeAtTime) {
         // Todo: Cancel pending orders
         // Check for Minmum amount of keeperFee
         // settle fundingFees
-        return executeAtTime = uint64(block.timestamp + vault.minExecutabilityAge());
+        return
+            executeAtTime = uint64(
+                block.timestamp + vault.minExecutabilityAge()
+            );
     }
-
-
 }
