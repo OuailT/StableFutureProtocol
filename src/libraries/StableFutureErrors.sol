@@ -17,9 +17,9 @@ library StableFutureErrors {
 
     error InvalidValue(uint256 value);
 
-    error onlyOwner(address msgSender);
+    error OnlyVaultOwner(address msgSender);
 
-    error onlyAuthorizedModule(address msgSender);
+    error OnlyAuthorizedModule(address msgSender);
 
     error ModuleKeyEmpty();
 

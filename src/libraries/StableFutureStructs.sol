@@ -48,4 +48,9 @@ library StableFutureStructs {
         // Minimum confid ratio aka expo ratio, The higher, the more confident the accuracy of the price.
         uint32 minConfidenceRatio;
     }
+
+    struct AuthorizedModule {
+        bytes32 moduleKey;
+        address moduleAddress;
+    }
 }

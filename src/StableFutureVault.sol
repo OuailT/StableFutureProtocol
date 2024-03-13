@@ -8,6 +8,7 @@ import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
 import {StableFutureEvents} from "./libraries/StableFutureEvents.sol";
 import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {ERC20LockableUpgradeable} from "./utilities/ERC20LockableUpgradeable.sol";
+import {ModuleUpgradeable} from "./abstracts/ModuleUpgradeable.sol";
 
 /**
     TODO: 
@@ -21,7 +22,11 @@ import {ERC20LockableUpgradeable} from "./utilities/ERC20LockableUpgradeable.sol
 /// @notice Contains state to be reused by different modules/contracts of the system.
 /// @dev Holds the rETH deposited by liquidity providers
 
-contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
+contract StableFutureVault is
+    OwnableUpgradeable,
+    ERC20LockableUpgradeable,
+    ModuleUpgradeable
+{
     using SafeERC20 for IERC20;
 
     /// @notice collateran deposited by the LP to get StableFuture Token
@@ -42,6 +47,13 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     /// @notice module to bool to pause and unpause a contract module
     mapping(bytes32 moduleKey => bool paused) public isModulePaused;
 
+    /// @notice Keys to module address
+    mapping(bytes32 moduleKey => address moduleAddress) public moduleAddress;
+
+    /// @notice module address to bool
+    mapping(address moduleAddress => bool authorized) public isAuthorizedModule;
+
+    // @notice withdrawColateraFee taken by the protocol for every withdraw
     uint256 public withdrawCollateralFee;
 
     /// @dev To prevent the implementation contract from being used, we invoke the _disableInitializers
@@ -80,6 +92,12 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
         setWithdrawCollateralFee(withdrawCollateralFee);
     } // Contract runtime deployment(bytes code executed on EVM)
 
+    modifier onlyAuthorizedModule() {
+        if (isAuthorizedModule[msg.sender] == false)
+            revert StableFutureErrors.OnlyAuthorizedModule(msg.sender);
+        _;
+    }
+
     /**
      * @dev Mints liquidity tokens based on deposited amount, ensuring minimum output and pool requirements are met.
      * @param account The account receiving the liquidity tokens.
@@ -89,12 +107,17 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     function _executeDeposit(
         address account,
         StableFutureStructs.AnnouncedLiquidityDeposit calldata liquidityDeposit
-    ) external returns (uint256 liquidityMinted) {
+    )
+        external
+        onlyAuthorizedModule
+        whenNotPaused
+        returns (uint256 liquidityMinted)
+    {
         // cach variables
         uint256 depositAmount = liquidityDeposit.depositAmount;
         uint256 minAmountOut = liquidityDeposit.minAmountOut;
 
-        liquidityMinted = depositQuote(depositAmount);
+        liquidityMinted = vault.depositQuote(depositAmount);
 
         if (liquidityMinted < minAmountOut) {
             revert StableFutureErrors.HighSlippage({
@@ -124,6 +147,30 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
             depositAmount,
             liquidityMinted
         );
+    }
+
+    function setAuthorizedModule(
+        StableFutureStructs.AuthorizedModule calldata _module
+    ) public onlyVaultOwner {
+        if (_module.moduleKey == bytes32(0))
+            revert StableFutureErrors.ZeroValue("moduleKey");
+
+        if (_module.moduleAddress == address(0))
+            revert StableFutureErrors.ZeroAddress("moduleAddress");
+
+        moduleAddress[_module.moduleKey] = _module.moduleAddress;
+        isAuthorizedModule[_module.moduleAddress] = true;
+    }
+
+    // Exerice to batch setAddAuthorizedModule
+    function setMultipleAuthorizedModule(
+        StableFutureStructs.AuthorizedModule[] calldata _modules
+    ) external onlyVaultOwner {
+        uint8 modulesLength = uint8(_modules.length);
+
+        for (uint8 i; i < modulesLength; i++) {
+            setAuthorizedModule(_modules[i]);
+        }
     }
 
     /////////////////////////////////////////////
@@ -157,7 +204,7 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
      */
     function depositQuote(
         uint256 _depositAmount
-    ) public view returns (uint256 _amountOut) {
+    ) external view returns (uint256 _amountOut) {
         _amountOut =
             (_depositAmount * (10 ** decimals())) /
             totalDepositPerShare();
@@ -165,7 +212,7 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
 
     function withdrawQuote(
         uint256 _withdrawAmount
-    ) public view returns (uint256 _amountOut) {
+    ) external view returns (uint256 _amountOut) {
         _amountOut =
             (_withdrawAmount * totalDepositPerShare()) /
             (10 ** decimals());
@@ -202,7 +249,7 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
     function setExecutabilityAge(
         uint64 _minExecutabilityAge,
         uint64 _maxExecutabilityAge
-    ) public onlyOwner {
+    ) public onlyVaultOwner {
         if (_minExecutabilityAge == 0)
             revert StableFutureErrors.ZeroValue("minExecutabilityAge");
         if (_maxExecutabilityAge == 0)
@@ -211,21 +258,32 @@ contract StableFutureVault is OwnableUpgradeable, ERC20LockableUpgradeable {
         maxExecutabilityAge = _maxExecutabilityAge;
     }
 
-    function pauseModule(bytes32 _moduleKey) external onlyOwner {
+    function pauseModule(bytes32 _moduleKey) external onlyVaultOwner {
         isModulePaused[_moduleKey] = true;
     }
 
-    function unpauseModule(bytes32 _moduleKey) external onlyOwner {
+    function unpauseModule(bytes32 _moduleKey) external onlyVaultOwner {
         isModulePaused[_moduleKey] = false;
     }
 
     function setWithdrawCollateralFee(
         uint256 _withdrawCollateralFee
-    ) external onlyOwner {
+    ) public onlyVaultOwner {
         // MaxFee = 1% = 1e16
         if (_withdrawCollateralFee < 0 || _withdrawCollateralFee > 1e16) {
             revert StableFutureErrors.InvalidValue(_withdrawCollateralFee);
         }
         withdrawCollateralFee = _withdrawCollateralFee;
+    }
+
+    function lock(address account, uint256 amount) public onlyAuthorizedModule {
+        _lock(account, amount);
+    }
+
+    function unlock(
+        address account,
+        uint256 amount
+    ) public onlyAuthorizedModule {
+        _unlock(account, amount);
     }
 }

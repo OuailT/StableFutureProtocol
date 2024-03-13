@@ -17,9 +17,9 @@ abstract contract ModuleUpgradeable {
     // Define the oracle interface
 
     // Only owner modifier
-    modifier onlyOwner() {
+    modifier onlyVaultOwner() {
         if (OwnableUpgradeable(address(vault)).owner() != msg.sender)
-            revert StableFutureErrors.onlyOwner(msg.sender);
+            revert StableFutureErrors.OnlyVaultOwner(msg.sender);
         _;
     }
 
@@ -38,7 +38,7 @@ abstract contract ModuleUpgradeable {
 
     /// @notice Setter for the vault contract.
     /// @dev Can be used in case StableFutureVault ever changes.
-    function setVault(IStableFutureVault _vault) external onlyOwner {
+    function setVault(IStableFutureVault _vault) external onlyVaultOwner {
         if (address(_vault) == address(0))
             revert StableFutureErrors.ZeroAddress("vault");
 

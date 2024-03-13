@@ -53,6 +53,12 @@ interface IStableFutureVault {
 
     function sendCollateral(address to, uint256 amount) external;
 
+    function withdrawQuote(
+        uint256 _withdrawAmount
+    ) external view returns (uint256 _amountOut);
+
+    function lock(address account, uint256 amount) external;
+
     // function getVaultSummary() external view returns (StableFutureStructs.VaultSummary memory _vaultSummary);
 
     // function getGlobalPositions() external view returns (StableFutureStructs.GlobalPositions memory _globalPositions);

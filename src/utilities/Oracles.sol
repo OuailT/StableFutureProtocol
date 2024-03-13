@@ -319,13 +319,15 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         address _asset,
         StableFutureStructs.PythNetworkOracle calldata newPythOracle,
         StableFutureStructs.ChainlinkOracle calldata newChainlinkOracle
-    ) external onlyOwner {
+    ) external onlyVaultOwner {
         _setAsset(_asset);
         _setchainlinkOracle(newChainlinkOracle);
         _setPythNetworkOracle(newPythOracle);
     }
 
-    function setNewMaxDiffPercent(uint256 _maxDiffPercent) external onlyOwner {
+    function setNewMaxDiffPercent(
+        uint256 _maxDiffPercent
+    ) external onlyVaultOwner {
         _setMaxPriceDiffPercent(_maxDiffPercent);
     }
 }

@@ -11,6 +11,7 @@ import {StableFutureStructs} from "./libraries/StableFutureStructs.sol";
 import {StableFutureEvents} from "./libraries/StableFutureEvents.sol";
 import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
 import {IOracles} from "./interfaces/IOracles.sol";
+import {ERC20LockableUpgradeable} from "./utilities/ERC20LockableUpgradeable.sol";
 
 /**
     NOTE:
@@ -25,7 +26,11 @@ import {IOracles} from "./interfaces/IOracles.sol";
 
 */
 
-contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
+contract Orders is
+    ReentrancyGuardUpgradeable,
+    ModuleUpgradeable,
+    ERC20LockableUpgradeable
+{
     uint256 public constant MIN_DEPOSIT = 1e16;
 
     /// @dev mapping to store all the announced Orders in encoded format
@@ -122,21 +127,22 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         uint256 minAmountOut,
         uint256 keeperFee
     ) public whenNotPaused {
-
         // 1- calculate how much rETH the user will withdraw by burning a certain amount LP token
         uint64 executableAtTime = _orderExecutionTime();
 
         // Check if the user has enough SFR token to announce withdraw
 
-        uint256 userBalance = IERC20(address(vault).balanceOf(msg.sender));
+        uint256 userBalance = IERC20(address(vault)).balanceOf(msg.sender);
 
-        if(userBalance < withdrawAmount) revert FutureStableErrors.InvalidBalance();
+        if (userBalance < withdrawAmount)
+            revert StableFutureErrors.InvalidBalance();
 
         {
             uint256 expectedAmountOut = vault.withdrawQuote(withdrawAmount);
 
             // expected Amount Out should always be greater than KeeperFees
-            if(expectedAmountOut <= keeperFee) revert FutureStableErrors.WithdrawToSmall();
+            if (expectedAmountOut <= keeperFee)
+                revert StableFutureErrors.WithdrawToSmall();
 
             // Since we pay the keeper with rETH we must deduct the keeperFee before checking for slippage.
             expectedAmountOut -= keeperFee;
@@ -147,10 +153,12 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
                     accepted: minAmountOut
                 });
             }
-            
         }
 
-        // TODO add locked functionnalities(ERC20LockabaleUpgradeable)
+        // Lock the withdrawAmount of SFR tokens fro in the contract to make sure the user doesn't transfer them once they
+        // announce withdraw
+        // NOTE: Locked tokens doesn't required users approvals
+        vault.lock({account: msg.sender, amount: withdrawAmount});
 
         // Store the order announcement info
         _announcedOrder[msg.sender] = StableFutureStructs.Order({
@@ -159,23 +167,18 @@ contract Orders is ReentrancyGuardUpgradeable, ModuleUpgradeable {
                 StableFutureStructs.AnnouncedLiquidityWithdraw({
                     withdrawAmount: withdrawAmount,
                     minAmountOut: minAmountOut
-                });
-            );
+                })
+            ),
             keeperFee: keeperFee,
             executableAtTime: executableAtTime
         });
 
-
-        StableFutureEvents.OrderAnnounced({
+        emit StableFutureEvents.OrderAnnounced({
             account: msg.sender,
-            orderType: FutureStableStructs.OrderType.Withdraw,
+            orderType: StableFutureStructs.OrderType.Withdraw,
             keeperFee: keeperFee
         });
-
     }
-
-
-
 
     function executeOrder(
         address account,
