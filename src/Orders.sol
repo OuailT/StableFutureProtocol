@@ -118,10 +118,6 @@ contract Orders is
         });
     }
 
-    // Exercice: Funciton to annonce withdraw of collateral and burn LP token
-    // Func params: amountWithdraw, minAmountout, KeeperFee
-    // modifier: none
-    // returns: None
     function annonceWithdraw(
         uint256 withdrawAmount,
         uint256 minAmountOut,
@@ -184,7 +180,7 @@ contract Orders is
         address account,
         bytes[] calldata updatePriceData
     ) external payable whenNotPaused nonReentrant {
-        // Make sure that keeper passed non empty array to avoid price update
+        // Make sure that keeper doens't passed an empty array to avoid price update
         if (updatePriceData.length == 0)
             revert StableFutureErrors.updatePriceDataEmpty();
 
@@ -200,7 +196,61 @@ contract Orders is
 
         if (orderType == StableFutureStructs.OrderType.Deposit) {
             _executeAnnounceDeposit(account);
+        } else if (orderType == StableFutureStructs.OrderType.Withdraw) {
+            _executeAnnounceWithdraw(account);
         }
+    }
+
+    // Exercices => function allow the keeper to execute executeAnnouncewithdraw.
+    // Params: address account returns amount(check it out later)
+    function _executeAnnounceWithdraw(
+        address account
+    ) internal returns (uint256 amountOut) {
+        // 1- retrieves the announcedOrder of the account;
+        StableFutureStructs.Order memory order = _announcedOrder[account];
+
+        // Decode the orderdata
+        StableFutureStructs.AnnouncedLiquidityWithdraw
+            memory liquidityWithdraw = abi.decode(
+                order.orderData,
+                (StableFutureStructs.AnnouncedLiquidityWithdraw)
+            );
+
+        // Check if the order exexutableTime is valid
+        _orderTimeValidity(account, order.executableAtTime);
+
+        uint256 withdrawFee;
+
+        (amountOut, withdrawFee) = vault._executeWithdraw(
+            account,
+            liquidityWithdraw
+        );
+
+        // The amount that the user will receive the KeeperFee, WithdrawFee would be deducted
+        uint256 totalFees = order.keeperFee + withdrawFee;
+
+        if (amountOut <= totalFees) {
+            revert StableFutureErrors.notEnoughMarginForFee();
+        }
+
+        amountOut -= totalFees;
+
+        if (amountOut < liquidityWithdraw.minAmountOut) {
+            revert StableFutureErrors.HighSlippage({
+                amountOut: amountOut,
+                accepted: liquidityWithdraw.minAmountOut
+            });
+        }
+
+        // Send rETh collateral back to the account
+        vault.sendCollateral({to: account, amount: amountOut});
+        vault.sendCollateral({to: msg.sender, amount: order.keeperFee});
+
+        emit StableFutureEvents.DepositExecuted({
+            account: account,
+            orderType: order.orderType,
+            keeperFee: order.keeperFee
+        });
     }
 
     /**

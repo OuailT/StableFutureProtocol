@@ -10,6 +10,11 @@ interface IStableFutureVault {
         StableFutureStructs.AnnouncedLiquidityDeposit calldata liquidityDeposit
     ) external returns (uint256 liquidityMinted);
 
+    function _executeWithdraw(
+        address _account,
+        StableFutureStructs.AnnouncedLiquidityWithdraw calldata liquidityWithraw
+    ) external returns (uint256 _amountOut, uint256 _withdrawFee);
+
     function collateral() external view returns (IERC20 collateral);
 
     function depositQuote(

@@ -46,4 +46,6 @@ library StableFutureErrors {
     error InvalidBalance();
 
     error WithdrawToSmall();
+
+    error notEnoughMarginForFee();
 }

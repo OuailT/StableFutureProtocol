@@ -98,6 +98,14 @@ contract StableFutureVault is
         _;
     }
 
+    // Collateral can only be transfered by authorized contracts/Module set by the Admin
+    function sendCollateral(
+        address to,
+        uint256 amount
+    ) external onlyAuthorizedModule {
+        collateral.safeTransfer(to, amount);
+    }
+
     /**
      * @dev Mints liquidity tokens based on deposited amount, ensuring minimum output and pool requirements are met.
      * @param account The account receiving the liquidity tokens.
@@ -129,7 +137,7 @@ contract StableFutureVault is
         _mint(account, liquidityMinted);
 
         // update total deposit in the pool
-        updateTotalVaulDeposit(depositAmount);
+        updateTotalVaulDeposit(int256(depositAmount));
 
         // Check if the liquidity provided respect the min liquidity to provide to avoid inflation
         // attacks and position with small amount of tokens
@@ -149,6 +157,37 @@ contract StableFutureVault is
         );
     }
 
+    function _executeWithdraw(
+        address _account,
+        StableFutureStructs.AnnouncedLiquidityWithdraw calldata liquidityWithraw
+    )
+        external
+        whenNotPaused
+        onlyAuthorizedModule
+        returns (uint256 _amountOut, uint256 _withdrawFee)
+    {
+        // 1- calculate how much the user will get out based on the CollaterPerShare and withdrawAmount
+        uint256 _collateralPerShare = collateralPerShare();
+        uint256 withdrawAmount = liquidityWithraw.withdrawAmount;
+
+        _amountOut = ((withdrawAmount * _collateralPerShare) /
+            10 ** decimals());
+
+        // calculate the _withdrawFee user must pay before withdraw
+        _withdrawFee = (withdrawCollateralFee * _amountOut) / 1e18;
+
+        // Unlock SFR tokens from the vault before burn
+        _unlock(_account, withdrawAmount);
+
+        // Burn SFR tokens
+        _burn(_account, withdrawAmount);
+
+        // update the totalVaultDeposit;
+        updateTotalVaulDeposit(-int256(_amountOut));
+
+        emit StableFutureEvents.Withdraw(_account, withdrawAmount, _amountOut);
+    }
+
     function setAuthorizedModule(
         StableFutureStructs.AuthorizedModule calldata _module
     ) public onlyVaultOwner {
@@ -162,7 +201,6 @@ contract StableFutureVault is
         isAuthorizedModule[_module.moduleAddress] = true;
     }
 
-    // Exerice to batch setAddAuthorizedModule
     function setMultipleAuthorizedModule(
         StableFutureStructs.AuthorizedModule[] calldata _modules
     ) external onlyVaultOwner {
@@ -181,7 +219,7 @@ contract StableFutureVault is
      * @dev Calculates the total deposit value per share of the pool.
      * @return _collateralPerShare The amount of deposit per share, scaled by `10 ** decimals()`.
      */
-    function totalDepositPerShare()
+    function collateralPerShare()
         internal
         view
         returns (uint256 _collateralPerShare)
@@ -207,14 +245,14 @@ contract StableFutureVault is
     ) external view returns (uint256 _amountOut) {
         _amountOut =
             (_depositAmount * (10 ** decimals())) /
-            totalDepositPerShare();
+            collateralPerShare();
     }
 
     function withdrawQuote(
         uint256 _withdrawAmount
     ) external view returns (uint256 _amountOut) {
         _amountOut =
-            (_withdrawAmount * totalDepositPerShare()) /
+            (_withdrawAmount * collateralPerShare()) /
             (10 ** decimals());
 
         // deducte protocol fees from the amoutOut
@@ -228,12 +266,16 @@ contract StableFutureVault is
      * @dev Updates the total deposit amount in the vault with a new deposit.
      * @param _newDeposit Amount to be added to the total vault deposit.
      */
-    function updateTotalVaulDeposit(uint256 _newDeposit) public {
+    function updateTotalVaulDeposit(
+        int256 _newDeposit
+    ) public onlyAuthorizedModule {
         // totalVaultDeposit
-        uint256 newTotalVaultDeposit = totalVaultDeposit + _newDeposit;
+        // on deposit = 100 + (10) = 110;
+        // on withdraw = 100 + (-10) = 90;
+        int256 newTotalVaultDeposit = int256(totalVaultDeposit) + _newDeposit;
 
         totalVaultDeposit = (newTotalVaultDeposit > 0)
-            ? newTotalVaultDeposit
+            ? uint256(newTotalVaultDeposit)
             : 0;
     }
 

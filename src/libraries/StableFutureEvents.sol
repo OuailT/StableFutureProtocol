@@ -14,6 +14,13 @@ library StableFutureEvents {
     // Emit when tokens are minted to LPs
     event Deposit(address account, uint256 depositAmount, uint256 mintedAmount);
 
+    // Emit when tokens are burn and collateral withdrawn
+    event Withdraw(
+        address account,
+        uint256 depositAmount,
+        uint256 mintedAmount
+    );
+
     // Emit when an deposit is executed
     event DepositExecuted(
         address account,
