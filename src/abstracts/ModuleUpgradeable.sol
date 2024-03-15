@@ -12,8 +12,6 @@ abstract contract ModuleUpgradeable {
     // Define the interface of the StableFutureVault contract
     IStableFutureVault public vault;
 
-    IOracles public oracles;
-
     // Define the oracle interface
 
     // Only owner modifier
@@ -50,8 +48,7 @@ abstract contract ModuleUpgradeable {
     /// @param _vault StableFutureVault address
     function __init_Module(
         bytes32 _moduleKey,
-        IStableFutureVault _vault,
-        IOracles _oracles
+        IStableFutureVault _vault
     ) internal {
         if (_moduleKey == bytes32(""))
             revert StableFutureErrors.ModuleKeyEmpty();
@@ -59,7 +56,6 @@ abstract contract ModuleUpgradeable {
             revert StableFutureErrors.ZeroAddress("vault");
         MODULE_KEY = _moduleKey;
         vault = _vault;
-        oracles = _oracles;
     }
 
     // Add Gaps in case we want to add more variable later for a specific contract

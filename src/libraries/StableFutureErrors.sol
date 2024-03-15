@@ -27,6 +27,8 @@ library StableFutureErrors {
 
     error OrderHasExpired();
 
+    error InvalidFee(uint256 fee);
+
     error ExecutableAtTimeNotReached(uint256 executableAtTime);
 
     error AmountToSmall(uint256 depositAmount, uint256 minDeposit);
@@ -48,4 +50,7 @@ library StableFutureErrors {
     error WithdrawToSmall();
 
     error notEnoughMarginForFee();
+
+    error ETHPriceInvalid();
+    error ETHPriceStale();
 }

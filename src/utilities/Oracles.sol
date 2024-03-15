@@ -15,7 +15,6 @@ import {IPyth} from "pyth-sdk-solidity/IPyth.sol";
 import {PythStructs} from "pyth-sdk-solidity/PythStructs.sol";
 import {SafeCast} from "openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
 import {SignedMath} from "openzeppelin-contracts/contracts/utils/math/SignedMath.sol";
-import {IOracles} from "../interfaces/IOracles.sol";
 
 contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
     address public asset; // Asset to price
@@ -50,10 +49,9 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         IStableFutureVault _vault,
         StableFutureStructs.ChainlinkOracle calldata _newchainlinkOracle,
         StableFutureStructs.PythNetworkOracle calldata _newPythNetworkOracle,
-        IOracles _oracles,
         uint256 _maxPriceDiffPercent
     ) external initializer {
-        __init_Module(StableModuleKeys.ORACLE_MODULE_KEY, _vault, _oracles);
+        __init_Module(StableModuleKeys.ORACLE_MODULE_KEY, _vault);
         __ReentrancyGuard_init();
 
         _setchainlinkOracle(_newchainlinkOracle);

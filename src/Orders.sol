@@ -11,6 +11,7 @@ import {StableFutureStructs} from "./libraries/StableFutureStructs.sol";
 import {StableFutureEvents} from "./libraries/StableFutureEvents.sol";
 import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
 import {IOracles} from "./interfaces/IOracles.sol";
+import {IKeeperFee} from "./interfaces/IKeeperFee.sol";
 import {ERC20LockableUpgradeable} from "./utilities/ERC20LockableUpgradeable.sol";
 
 /**
@@ -39,6 +40,9 @@ contract Orders is
 
     using SafeERC20 for IERC20;
 
+    IKeeperFee public keerFeeContract;
+    IOracles public OraclesContract;
+
     /// @dev To prevent the implementation contract from being used, we invoke the _disableInitializers
     /// function in the constructor to automatically lock it when it is deployed.
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -52,9 +56,14 @@ contract Orders is
      */
     function initialize(
         IStableFutureVault _vault,
-        IOracles _oracles
+        IOracles _oracles,
+        IKeeperFee _keeperFee
     ) external initializer {
-        __init_Module(StableModuleKeys.ORDERS_MODULE_KEY, _vault, _oracles);
+        __init_Module(StableModuleKeys.ORDERS_MODULE_KEY, _vault);
+
+        OraclesContract = IOracles(_oracles);
+        keerFeeContract = IKeeperFee(_keeperFee);
+
         __ReentrancyGuard_init();
     }
 
@@ -70,7 +79,7 @@ contract Orders is
         uint256 keeperFee
     ) public whenNotPaused {
         // Calculate the time when the order becomes executable by the keeper
-        uint64 executableAtTime = _orderExecutionTime();
+        uint64 executableAtTime = _orderExecutionTime(keeperFee);
 
         // Check for minimum deposit
         if (depositAmount < MIN_DEPOSIT) {
@@ -124,7 +133,7 @@ contract Orders is
         uint256 keeperFee
     ) public whenNotPaused {
         // 1- calculate how much rETH the user will withdraw by burning a certain amount LP token
-        uint64 executableAtTime = _orderExecutionTime();
+        uint64 executableAtTime = _orderExecutionTime(keeperFee);
 
         // Check if the user has enough SFR token to announce withdraw
 
@@ -186,7 +195,7 @@ contract Orders is
 
         // 1- Internal function to update the price of Pyth each time this function is called for the user to get the most recent
         // price for his order to be executed.
-        IOracles(oracles).updatePythPrice(account, updatePriceData);
+        OraclesContract.updatePythPrice(account, updatePriceData);
 
         // get the orderType of the account
         StableFutureStructs.OrderType orderType = _announcedOrder[account]
@@ -330,10 +339,17 @@ contract Orders is
      * @dev Calculates the future timestamp when an order becomes executable.
      * @return executeAtTime The timestamp at which a new order will become executable, based on the vault's minimum executability age.
      */
-    function _orderExecutionTime() private view returns (uint64 executeAtTime) {
+    function _orderExecutionTime(
+        uint256 _keeperFee
+    ) private view returns (uint64 executeAtTime) {
         // Todo: Cancel pending orders
         // Check for Minmum amount of keeperFee
         // settle fundingFees
+
+        if (_keeperFee < keerFeeContract.getKeeperFee()) {
+            revert StableFutureErrors.InvalidFee(_keeperFee);
+        }
+
         return
             executeAtTime = uint64(
                 block.timestamp + vault.minExecutabilityAge()
