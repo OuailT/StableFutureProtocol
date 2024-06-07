@@ -48,7 +48,9 @@ interface IStableFutureVault {
 
     // function skewFractionMax() external view returns (uint256 skewFractionMax);
 
-    // function moduleAddress(bytes32 _moduleKey) external view returns (address moduleAddress);
+    function moduleAddress(
+        bytes32 _moduleKey
+    ) external view returns (address moduleAddress);
 
     // function isAuthorizedModule(address _address) external view returns (bool status);
 

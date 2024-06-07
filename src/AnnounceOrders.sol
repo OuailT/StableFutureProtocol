@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.22;
+pragma solidity 0.8.22;
 
 import {ReentrancyGuardUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
@@ -13,7 +13,14 @@ import {StableFutureErrors} from "./libraries/StableFutureErrors.sol";
 import {IOracles} from "./interfaces/IOracles.sol";
 import {IKeeperFee} from "./interfaces/IKeeperFee.sol";
 import {ERC20LockableUpgradeable} from "./utilities/ERC20LockableUpgradeable.sol";
+import {OraclesModifiers} from "./abstracts/OraclesModifiers.sol";
 
+// TODO
+/**
+[] seperate Annnounce Order from Execute Order 
+[] Run test for everyline wriiten of function written
+
+ */
 /**
     NOTE:
     - The code inside a constructor or part of a global variable declaration is not part of a deployed contract's runtime bytecode
@@ -27,10 +34,11 @@ import {ERC20LockableUpgradeable} from "./utilities/ERC20LockableUpgradeable.sol
 
 */
 
-contract Orders is
+contract AnnounceOrders is
     ReentrancyGuardUpgradeable,
     ModuleUpgradeable,
-    ERC20LockableUpgradeable
+    ERC20LockableUpgradeable,
+    OraclesModifiers
 {
     uint256 public constant MIN_DEPOSIT = 1e16;
 
@@ -40,7 +48,6 @@ contract Orders is
 
     using SafeERC20 for IERC20;
 
-    IKeeperFee public keerFeeContract;
     IOracles public OraclesContract;
 
     /// @dev To prevent the implementation contract from being used, we invoke the _disableInitializers
@@ -54,16 +61,8 @@ contract Orders is
      * @dev Initializes the orders module with a reference to the vault
      * @param _vault The StableFutureVault contract address this module will interact with.
      */
-    function initialize(
-        IStableFutureVault _vault,
-        IOracles _oracles,
-        IKeeperFee _keeperFee
-    ) external initializer {
-        __init_Module(StableModuleKeys.ORDERS_MODULE_KEY, _vault);
-
-        OraclesContract = IOracles(_oracles);
-        keerFeeContract = IKeeperFee(_keeperFee);
-
+    function initialize(IStableFutureVault _vault) external initializer {
+        __init_Module(StableModuleKeys._ANNOUNCE_ORDERS_MODULE_KEY, _vault);
         __ReentrancyGuard_init();
     }
 
@@ -78,7 +77,8 @@ contract Orders is
         uint256 minAmountOut,
         uint256 keeperFee
     ) public whenNotPaused {
-        // Calculate the time when the order becomes executable by the keeper
+        // Calculate the time when the order was executable by the keeper + check if the keeperFee
+        // respect the mintKeeperFee
         uint64 executableAtTime = _orderExecutionTime(keeperFee);
 
         // Check for minimum deposit
@@ -89,7 +89,7 @@ contract Orders is
             });
         }
 
-        // Check if deposit amount is below a minimum threshold
+        // Check what is the expected amount out based on the user deposit to check for slippage
         uint256 expectedAmountOut = vault.depositQuote(depositAmount);
 
         /// Check for slippage
@@ -111,6 +111,9 @@ contract Orders is
             keeperFee: keeperFee,
             executableAtTime: executableAtTime
         });
+
+        // @audit-info Do we need approval hers to transfer from the user wallet or it going to be
+        // Implemented in the front end
 
         // Transfer rETh from msg.sender to this address(this) which will transfer it later to the vault when the annonced order is executed(x)
         vault.collateral().safeTransferFrom(
@@ -149,6 +152,7 @@ contract Orders is
             if (expectedAmountOut <= keeperFee)
                 revert StableFutureErrors.WithdrawToSmall();
 
+            // Deduct keeper Feee before checking for slippage
             // Since we pay the keeper with rETH we must deduct the keeperFee before checking for slippage.
             expectedAmountOut -= keeperFee;
 
@@ -160,9 +164,10 @@ contract Orders is
             }
         }
 
-        // Lock the withdrawAmount of SFR tokens fro in the contract to make sure the user doesn't transfer them once they
+        // Lock the withdrawAmount of SFR tokens  in the contract to make sure the user doesn't transfer them once they
         // announce withdraw
         // NOTE: Locked tokens doesn't required users approvals
+        // withdrawAmount refers to the shares (ERC20 SFR tokens) that the user owns in the pool by depositing rETH
         vault.lock({account: msg.sender, amount: withdrawAmount});
 
         // Store the order announcement info
@@ -188,14 +193,20 @@ contract Orders is
     function executeOrder(
         address account,
         bytes[] calldata updatePriceData
-    ) external payable whenNotPaused nonReentrant {
+    )
+        external
+        payable
+        whenNotPaused
+        nonReentrant
+        UpdatePythPrice(vault, msg.sender, updatePriceData)
+    {
         // Make sure that keeper doens't passed an empty array to avoid price update
         if (updatePriceData.length == 0)
             revert StableFutureErrors.updatePriceDataEmpty();
 
         // 1- Internal function to update the price of Pyth each time this function is called for the user to get the most recent
         // price for his order to be executed.
-        OraclesContract.updatePythPrice(account, updatePriceData);
+        // OraclesContract.updatePythPrice(account, updatePriceData);
 
         // get the orderType of the account
         StableFutureStructs.OrderType orderType = _announcedOrder[account]
@@ -346,7 +357,13 @@ contract Orders is
         // Check for Minmum amount of keeperFee
         // settle fundingFees
 
-        if (_keeperFee < keerFeeContract.getKeeperFee()) {
+        // @audit-info setModules when doing unit test
+        if (
+            _keeperFee <
+            IKeeperFee(
+                vault.moduleAddress(StableModuleKeys._KEEPER_FEE_MODULE_KEY)
+            ).getKeeperFee()
+        ) {
             revert StableFutureErrors.InvalidFee(_keeperFee);
         }
 

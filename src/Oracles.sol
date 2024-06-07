@@ -3,14 +3,14 @@ pragma solidity ^0.8.22;
 
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {StableFutureStructs} from "../libraries/StableFutureStructs.sol";
-import {StableFutureErrors} from "../libraries/StableFutureErrors.sol";
-import {StableFutureEvents} from "../libraries/StableFutureEvents.sol";
-import {StableModuleKeys} from "../libraries/StableModuleKeys.sol";
+import {StableFutureStructs} from "src/libraries/StableFutureStructs.sol";
+import {StableFutureErrors} from "src/libraries/StableFutureErrors.sol";
+import {StableFutureEvents} from "src/libraries/StableFutureEvents.sol";
+import {StableModuleKeys} from "src/libraries/StableModuleKeys.sol";
 import {ReentrancyGuardUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
-import {ModuleUpgradeable} from "../abstracts/ModuleUpgradeable.sol";
-import {IStableFutureVault} from "../interfaces/IStableFutureVault.sol";
-import {IChainlinkAggregatorV3} from "../interfaces/IChainlinkAggregatorV3.sol";
+import {ModuleUpgradeable} from "src/abstracts/ModuleUpgradeable.sol";
+import {IStableFutureVault} from "src/interfaces/IStableFutureVault.sol";
+import {IChainlinkAggregatorV3} from "src/interfaces/IChainlinkAggregatorV3.sol";
 import {IPyth} from "pyth-sdk-solidity/IPyth.sol";
 import {PythStructs} from "pyth-sdk-solidity/PythStructs.sol";
 import {SafeCast} from "openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
@@ -51,7 +51,7 @@ contract Oracles is ReentrancyGuardUpgradeable, ModuleUpgradeable {
         StableFutureStructs.PythNetworkOracle calldata _newPythNetworkOracle,
         uint256 _maxPriceDiffPercent
     ) external initializer {
-        __init_Module(StableModuleKeys.ORACLE_MODULE_KEY, _vault);
+        __init_Module(StableModuleKeys._ORACLE_MODULE_KEY, _vault);
         __ReentrancyGuard_init();
 
         _setchainlinkOracle(_newchainlinkOracle);
