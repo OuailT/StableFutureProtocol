@@ -47,9 +47,62 @@ abstract contract Setup is Test {
 
     /*********************** IMPLEMENTATION *****************************/
 
+    address internal announceOrdersImplementation;
+    address internal oraclesImplementation;
+    address internal vaultImplementation;
+
     /*********************** PROXIES *****************************/
     ProxyAdmin internal proxyAdmin;
     AnnounceOrders internal announceOrdersProxy;
     Oracles internal oraclesProxy;
-    StableFutureVault internal stableFutureVaultProxy;
+    StableFutureVault internal vaultProxy;
+
+    function setUp() public virtual {
+        vm.startPrank(admin);
+
+        // Deploy mocks contracts;
+
+        // WETH = new ERC20("WETH Mocks", "WETH");
+        mockPyth = new MockPyth(60, 1);
+        // mockKeeperFee = new NOTe: Add later
+
+        // Deploy the proxy admin for all system contract
+        proxyAdmin = new ProxyAdmin(address(admin));
+
+        // Deploy implementation for all the system
+        announceOrdersImplementation = address(new AnnounceOrders());
+        oraclesImplementation = address(new Oracles());
+        vaultImplementation = address(new StableFutureVault());
+
+        // Deploy the proxies using the above implementation
+        announceOrdersProxy = AnnounceOrders(
+            address(
+                new TransparentUpgradeableProxy(
+                    announceOrdersImplementation,
+                    address(proxyAdmin),
+                    ""
+                )
+            )
+        );
+
+        oraclesProxy = Oracles(
+            address(
+                new TransparentUpgradeableProxy(
+                    oraclesImplementation,
+                    address(proxyAdmin),
+                    ""
+                )
+            )
+        );
+
+        vaultProxy = StableFutureVault(
+            address(
+                new TransparentUpgradeableProxy(
+                    vaultImplementation,
+                    address(proxyAdmin),
+                    ""
+                )
+            )
+        );
+    }
 }
